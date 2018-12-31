@@ -9,16 +9,19 @@
 #include "quantumscar.h"
 
 Scars::Scars(){};
-Scars::Scars(int no_t, int ranges_t, string bound_cond_t, int nvec1_t, int nvec2_t):rangeS(ranges_t), bound_cond(bound_cond_t), nvec1(nvec1_t), nvec2(nvec2_t) {
+Scars::Scars(int no_t, int ranges_t, string type_t, string bound_cond_t, int nvec1_t, int nvec2_t):rangeS(ranges_t), type(type_t), bound_cond(bound_cond_t), nvec1(nvec1_t), nvec2(nvec2_t) {
     this->init(no_t);
+    
+    cout<<"to   make hilbertspace"<<endl;
     this->generate_scar_hilberspace();
+    cout<<"done make hilbertspace"<<endl;
+    
+    cout<<"to   setup symmetry"<<endl;
     this->setup_symmetry();
+    cout<<"done setup symmetry"<<endl;
     
-    this->diag_setup();
+    this->diag_setup(this->type);
     
-    cout<<"$ project H into inverse sector"<<endl;
-    this->proj_H_invsector();
-
 //    cout<<"$ start diagonalization $"<<endl;
 //    //this->diag_scar();
 //    this->diag_scar_H_inv("both");
@@ -31,28 +34,45 @@ void Scars::init(int no_t){
     this->statelist_M.clear(); this->matrixlist_M.clear(); this->one=(state_int) 1;
     //TODO: only for spin-half, it is "fermion".
     this->No=no_t; this->Np=0; this->momentum=0; this->geometry="sphere"; this->statistics="fermion"; this->shift=vector<double>(2, 0.); this->useqh=false; this->needM=false;
+    if (this->No%2==0) {
+        this->usefullsymmetry(true);
+    }
+    else {
+        this->usefullsymmetry(false);
+    }
+}
+void Scars::usefullsymmetry(bool use){
+    if (use) {
+        cout<<"@ Use Inversion 'P' and Translation symmetry 'T^(L/2)' @"<<endl;
+        this->fullsymmetry=true;
+    }
+    else {
+        cout<<"@ Use Inversion 'P' only @"<<endl;
+        this->fullsymmetry=false;
+    }
 }
 void Scars::setup_symmetry(){
     if (this->bound_cond=="PBC") {
-        this->Inversion_setup();
-        this->ParticleHole_setup();
         this->Translation_setup();
+        cout<<"done translation"<<endl;
+        this->Inversion_setup();
+        cout<<"done inversion"<<endl;
+        this->ParticleHole_setup();
+        cout<<"done particlehole"<<endl;
     }
     else if (this->bound_cond=="OBC") {
         this->Inversion_setup();
         this->ParticleHole_setup();
     }
 }
-void Scars::diag_setup(){
-    this->make_mlist_h1h1();
-    this->matrixlist_M=mergemlist(sortmlist(this->matrixlist_M));
+void Scars::diag_setup(string type_t){
+    cout<<"start make mlist"<<endl;
+    this->make_mlist(type_t);
+    cout<<"done  make mlist"<<endl;
+    
     this->H_spamatrix=Eigen::SparseMatrix<double>(this->bitlist.size(), this->bitlist.size());
     vector<Eigen::Triplet<double>> triplets=mlist_to_ftriplet(this->matrixlist_M);
     this->H_spamatrix.setFromTriplets(triplets.begin(), triplets.end());
-}
-void Scars::diag_setup_perturb(){
-    //TODO: make h1 diag. stored in mlist_h1.
-    
 }
 inline bool Scars::legal_state(state_int input){
     if (bound_cond=="PBC") {
@@ -124,52 +144,20 @@ void Scars::generate_scar_hilberspace(){
     }
     this->bitlist=this->basis;
 }
-void Scars::make_mlist_h0(){
+void Scars::make_mlist(string type_t){
     this->matrixlist_M.clear();
+    int N=this->bitlist.size();
     
-    for (unsigned int i=0; i<this->bitlist.size(); i++) {
-        matrix k;
-        k.ket=i;
-        state_int bit_tmp0=this->bitlist[i], bit_tmp;
-        for (int j=0; j<this->No; j++) {
-            
-            bit_tmp=bit_tmp0 ^ this->one<<j;
-            if (!this->legal_state(bit_tmp)) {
-                //print_bit(bit_tmp, this->No); cout<<"not legal state"<<endl;
-                continue;
-            }
-            
-            vector<state_int>::iterator binaryit=this->bitlist.begin();
-            binaryit=lower_bound(this->bitlist.begin(), this->bitlist.end(), bit_tmp);
-            if (binaryit!=this->bitlist.end() and *binaryit==bit_tmp) {
-                this->index=binaryit-this->bitlist.begin();
-                k.bra=index;
-                k.element=1.0;
-                this->matrixlist_M.push_back(k);
-                //print_bit(this->bitlist[i], this->No); print_bit(bit_tmp, this->No); cout<<"ind="<<index<<endl<<endl;
-            }
-            else {
-                cout<<"cannot find basis"<<endl;
-                print_bit(this->bitlist[i], this->No); print_bit(bit_tmp, this->No);
-                exit(0);
-            }
-        }
-    }
-}
-void Scars::make_mlist_h1h1(){
-    this->matrixlist_M.clear();//TODO: to change !!!!!!
-    
-    for (unsigned i=0; i<this->bitlist.size(); i++) {
-        matrix k;
-        k.ket=i;
-        state_int bit_tmp0=this->bitlist[i], bit_tmp;
-        for (int j1=0; j1<this->No; j1++) {
-            for (int j2=j1; j2<this->No; j2++) {
+    if (type_t=="PXP") {
+        for (unsigned int i=0; i<N; i++) {
+            matrix k;
+            k.ket=i;
+            state_int bit_tmp0=this->bitlist[i], bit_tmp;
+            for (int j=0; j<this->No; j++) {
                 
-                bit_tmp=bit_tmp0 ^ this->one<<j1;
-                bit_tmp=bit_tmp  ^ this->one<<j2;
-                
+                bit_tmp=bit_tmp0 ^ this->one<<j;
                 if (!this->legal_state(bit_tmp)) {
+                    //print_bit(bit_tmp, this->No); cout<<"not legal state"<<endl;
                     continue;
                 }
                 
@@ -178,10 +166,7 @@ void Scars::make_mlist_h1h1(){
                 if (binaryit!=this->bitlist.end() and *binaryit==bit_tmp) {
                     this->index=binaryit-this->bitlist.begin();
                     k.bra=index;
-                    k.element=2.0;
-                    if (j1==j2) {
-                        k.element=1.0;
-                    }
+                    k.element=1.0;
                     this->matrixlist_M.push_back(k);
                     //print_bit(this->bitlist[i], this->No); print_bit(bit_tmp, this->No); cout<<"ind="<<index<<endl<<endl;
                 }
@@ -193,6 +178,85 @@ void Scars::make_mlist_h1h1(){
             }
         }
     }
+    else if (type_t=="PX2P") {
+        for (unsigned i=0; i<N; i++) {
+            matrix k;
+            k.ket=i;
+            state_int bit_tmp0=this->bitlist[i], bit_tmp;
+            for (int j1=0; j1<this->No; j1++) {
+                for (int j2=j1; j2<this->No; j2++) {
+                    
+                    bit_tmp=bit_tmp0 ^ this->one<<j1;
+                    bit_tmp=bit_tmp  ^ this->one<<j2;
+                    
+                    if (!this->legal_state(bit_tmp)) {
+                        continue;
+                    }
+                    
+                    vector<state_int>::iterator binaryit=this->bitlist.begin();
+                    binaryit=lower_bound(this->bitlist.begin(), this->bitlist.end(), bit_tmp);
+                    if (binaryit!=this->bitlist.end() and *binaryit==bit_tmp) {
+                        this->index=binaryit-this->bitlist.begin();
+                        k.bra=index;
+                        k.element=2.0;
+                        if (j1==j2) {
+                            k.element=1.0;
+                        }
+                        this->matrixlist_M.push_back(k);
+                        //print_bit(this->bitlist[i], this->No); print_bit(bit_tmp, this->No); cout<<"ind="<<index<<endl<<endl;
+                    }
+                    else {
+                        cout<<"cannot find basis"<<endl;
+                        print_bit(this->bitlist[i], this->No); print_bit(bit_tmp, this->No);
+                        exit(0);
+                    }
+                }
+            }
+        }
+    }
+    else if (type_t=="PXPXP") {
+        this->matrixlist_M.clear();
+        this->make_mlist("PXP");
+        
+        vector<Eigen::Triplet<double>> triplets=mlist_to_ftriplet(this->matrixlist_M);
+        
+        Eigen::SparseMatrix<double> spatmp=Eigen::SparseMatrix<double>(N, N), spatmp2;
+        spatmp.setFromTriplets(triplets.begin(), triplets.end());
+        spatmp2=spatmp*spatmp;
+        
+        this->matrixlist_M=triplet_to_mlist(to_triplets(spatmp2));
+    }
+    else if (type_t=="Pert") {
+        double V; cout<<"type in 'V':"<<endl; cin>>V;
+        cout<<"P.X.P + 1/V.(P.X.X.P- P.X.P.X.P);    V="<<V<<endl;
+        
+        vector<Eigen::Triplet<double>> triplets;
+        Eigen::SparseMatrix<double> spa_PXP, spa_PX2P, spa_PXPXP, spa_Pert;
+        
+        spa_PXP=Eigen::SparseMatrix<double>(N, N); spa_PX2P=spa_PXP; spa_PXPXP=spa_PXP; spa_Pert=spa_PXP;
+        
+        
+        this->make_mlist("PXP");
+        triplets=mlist_to_ftriplet(this->matrixlist_M);
+        spa_PXP.setFromTriplets(triplets.begin(), triplets.end());
+        
+        this->make_mlist("PX2P");
+        triplets=mlist_to_ftriplet(this->matrixlist_M);
+        spa_PX2P.setFromTriplets(triplets.begin(), triplets.end());
+        
+        this->make_mlist("PXPXP");
+        triplets=mlist_to_ftriplet(this->matrixlist_M);
+        spa_PXPXP.setFromTriplets(triplets.begin(), triplets.end());
+        
+        spa_Pert=spa_PXP+1./V*(spa_PX2P-spa_PXPXP);
+        this->matrixlist_M=triplet_to_mlist(to_triplets(spa_Pert));
+    }
+    else {
+        cout<<"unrecognized type"<<endl;
+        exit(0);
+    }
+    
+    this->matrixlist_M=mergemlist(sortmlist(this->matrixlist_M));
 }
 void Scars::diag_scar(){
     cout<<"@@ begin diagonalize @@"<<endl;
@@ -210,6 +274,30 @@ void Scars::diag_scar(){
 }
 Eigen::SparseMatrix<double> Scars::get_H(){
     return this->H_spamatrix;
+}
+vector<double> Scars::get_energies(string type){
+    vector<double> outputs;
+    if (type=="pls") {
+        for (unsigned i=0; i<this->Eigen_Sets_pls.size(); i++) {
+            outputs.push_back(this->Eigen_Sets_pls[i].eval);
+        }
+    }
+    else if (type=="min") {
+        for (unsigned i=0; i<this->Eigen_Sets_min.size(); i++) {
+            outputs.push_back(this->Eigen_Sets_min[i].eval);
+        }
+    }
+    else if (type=="both") {
+        cout<<"size="<<this->Eigen_Sets.size()<<endl;
+        for (unsigned i=0; i<this->Eigen_Sets.size(); i++) {
+            outputs.push_back(this->Eigen_Sets[i].eval);
+        }
+    }
+    else {
+        cout<<"unrecognized type"<<endl;
+        exit(0);
+    }
+    return outputs;
 }
 void Scars::show_scar_energy(int range){
     int N=this->Eval.size();
@@ -234,7 +322,7 @@ void Scars::show_scar_energy(int range){
 }
 
 //Inversion.
-void Scars::Inversion_setup(){
+void Scars::make_Invmat(){
     this->Invmat=Eigen::SparseMatrix<double>(this->bitlist.size(), this->bitlist.size());
     
     vector<Eigen::Triplet<double>> triples; triples.clear();
@@ -252,52 +340,68 @@ void Scars::Inversion_setup(){
             cout<<"cannot find inverted bit"<<endl;
             exit(0);
         }
-        
     }
-    
     this->Invmat.setFromTriplets(triples.begin(), triples.end());
-    
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,-1,-1>> es;
-    es.compute(this->Invmat);
-    vector<double> InvEval=vector<double>(es.eigenvalues().size(), 0.);
-    for (int i=0; i<InvEval.size(); i++) {
-        InvEval[i]=es.eigenvalues()[i];
-    }
-    vector<Eigen::VectorXd> InvEvec=vector<Eigen::VectorXd>(es.eigenvalues().size());
-    for (int i=0; i<InvEval.size(); i++) {
-        InvEvec[i]=Eigen::VectorXd::Zero(this->statelist_M.size());
-        for (int j=0; j<this->bitlist.size(); j++) {
-            InvEvec[i](j)=es.eigenvectors().col(i)[j];
+}
+void Scars::Inversion_setup(){
+    this->make_Invmat();
+    this->make_inversion_proj();
+}
+void Scars::make_inversion_proj(){
+    //setup the dimension of inversion symmetry, anti-symmetry sector.
+    int dim_pls=0, dim_min=0;
+    for (unsigned i=0; i<this->bitlist.size(); i++) {
+        if (this->bitlist[i]==invert_bits(this->bitlist[i], this->No)) {
+            dim_pls++;
         }
     }
+    dim_pls=(this->bitlist.size()+dim_pls)/2;
+    dim_min=this->bitlist.size()-dim_pls;
+    this->P_pls=Eigen::MatrixXd::Zero(this->bitlist.size(), dim_pls);
+    this->P_min=Eigen::MatrixXd::Zero(this->bitlist.size(), dim_min);
     
-    this->Eval_N_pls=0; this->Eval_N_min=0;
-    for (int i=0; i<InvEval.size(); i++) {
-        if (InvEval[i]>0) {
-            Eval_N_pls++;
+    //make inversion projectors;
+    vector<state_int>::iterator binaryit;
+    vector<int> found_states; found_states.clear();
+    
+    int counter_pls=0, counter_min=0;
+    for (unsigned i=0; i<this->bitlist.size(); i++) {
+        if (find(found_states.begin(), found_states.end(), i)!=found_states.end()) {
+            continue;
+        }
+        state_int tmpbit=invert_bits(this->bitlist[i], this->No);
+        if (this->bitlist[i]==tmpbit) {
+            this->P_pls(i, counter_pls++)= 1.;
         }
         else {
-            Eval_N_min++;
+            binaryit=lower_bound(this->bitlist.begin(), this->bitlist.end(), tmpbit);
+            if (binaryit!=this->bitlist.end() and *binaryit==tmpbit) {
+                int bitpos=binaryit-this->bitlist.begin();
+                found_states.push_back(bitpos);
+                this->P_pls(i,      counter_pls)   = 1./sqrt(2.);
+                this->P_pls(bitpos, counter_pls++) = 1./sqrt(2.);
+                this->P_min(i,      counter_min)   =-1./sqrt(2.);
+                this->P_min(bitpos, counter_min++) =-1./sqrt(2.);
+            }
+            else {
+                print_bit(this->bitlist[i], this->No); print_bit(tmpbit, this->No); cout<<"ind="<<binaryit-this->bitlist.begin()<<endl<<endl;
+                cout<<"cannot find translated bit"<<endl;
+                exit(0);
+            }
         }
     }
-    
-    this->P_pls=Eigen::MatrixXd::Zero(this->bitlist.size(), Eval_N_pls);
-    this->P_min=Eigen::MatrixXd::Zero(this->bitlist.size(), Eval_N_min);
-    int counter_pls=0, counter_min=0;
-    for (int i=0; i<InvEval.size(); i++) {
-        if (InvEval[i]>0) {
-            this->P_pls.col(counter_pls++)=InvEvec[i];
-        }
-        else if (InvEval[i]<0) {
-            this->P_min.col(counter_min++)=InvEvec[i];
-        }
+}
+void Scars::proj_full_sym(){
+    if (this->bound_cond!="PBC") {
+        cout<<"For PBC only"<<endl;
+        exit(0);
     }
 }
 void Scars::proj_H_invsector(){
     this->H_inv_pls=this->P_pls.adjoint()*this->H_spamatrix*this->P_pls;
     this->H_inv_min=this->P_min.adjoint()*this->H_spamatrix*this->P_min;
 }
-void Scars::diag_scar_H_inv(string invpls, bool calculatees, bool calculateph){
+void Scars::diag_scar_H_inv(string invpls, bool calculatetrans, bool calculatees, bool calculateph){
     if (invpls=="pls") {
         if (this->H_inv_pls.size()==0) {
             cout<<"to make H_inv_pls"<<endl;
@@ -314,6 +418,10 @@ void Scars::diag_scar_H_inv(string invpls, bool calculatees, bool calculateph){
                 eset_tmp.parity=true;
                 eset_tmp.evec=es.eigenvectors().col(i);
                 eset_tmp.eval=es.eigenvalues()[i];
+                if (calculatetrans and this->No%2==0) {
+                    Eigen::VectorXd vectmp=Xcd_to_Xd(this->P_pls*Xd_to_Xcd(eset_tmp.evec));
+                    eset_tmp.trans=vectmp.dot(this->Transmat_halfL*vectmp);
+                }
                 if (calculatees) {
                     Eigen::MatrixXd rho2;
                     this->ee_compute_rho(Xcd_to_Xd(this->P_pls*Xd_to_Xcd(eset_tmp.evec)), rho2, this->bitlist);
@@ -343,6 +451,10 @@ void Scars::diag_scar_H_inv(string invpls, bool calculatees, bool calculateph){
                 eset_tmp.parity=false;
                 eset_tmp.evec=es.eigenvectors().col(i);
                 eset_tmp.eval=es.eigenvalues()[i];
+                if (calculatetrans and this->No%2==0) {
+                    Eigen::VectorXd vectmp=Xcd_to_Xd(this->P_min*Xd_to_Xcd(eset_tmp.evec));
+                    eset_tmp.trans=vectmp.dot(this->Transmat_halfL*vectmp);
+                }
                 if (calculatees) {
                     Eigen::MatrixXd rho2;
                     this->ee_compute_rho(Xcd_to_Xd(this->P_min*Xd_to_Xcd(eset_tmp.evec)), rho2, this->bitlist);
@@ -357,14 +469,50 @@ void Scars::diag_scar_H_inv(string invpls, bool calculatees, bool calculateph){
         }
     }
     else if (invpls=="both") {
-        this->diag_scar_H_inv("pls", calculatees, calculateph);
-        this->diag_scar_H_inv("min", calculatees, calculateph);
+        this->diag_scar_H_inv("pls", calculatetrans, calculatees, calculateph);
+        this->diag_scar_H_inv("min", calculatetrans, calculatees, calculateph);
         this->Eigen_Sets.clear();
         this->Eigen_Sets.insert(this->Eigen_Sets.end(), this->Eigen_Sets_pls.begin(), this->Eigen_Sets_pls.end());
         this->Eigen_Sets.insert(this->Eigen_Sets.end(), this->Eigen_Sets_min.begin(), this->Eigen_Sets_min.end());
         
         sort(this->Eigen_Sets.begin(), this->Eigen_Sets.end(), compare_eigen_set);
     }
+}
+bool Scars::diag_fullsymmetry(bool inv, bool trans, bool calculatees){
+    if (this->bound_cond!="PBC") {
+        cout<<"full symmetry diag mode only for PBC"<<endl;
+    }
+    
+    this->make_invtrans_proj(inv, trans);
+    
+    if (!this->make_invtrans_proj(inv, trans)) {
+        return false;
+    }
+    else {
+        //cout<<this->invtrans_proj.cols()<<endl;
+        this->reducedH=this->invtrans_proj.adjoint()*this->H_spamatrix*this->invtrans_proj;
+        
+        //cout<<"@@ begin diagonalize (-) @@"<<endl;
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,-1,-1>> es;
+        es.compute(this->reducedH);
+        
+        this->Eigen_Sets.clear();
+        for (int i=0; i<es.eigenvalues().size(); i++) {
+            eigen_set eset_tmp;
+            eset_tmp.parity=inv;
+            eset_tmp.trans=2*trans-1;
+            eset_tmp.evec=es.eigenvectors().col(i);
+            eset_tmp.eval=es.eigenvalues()[i];
+            if (calculatees) {
+                Eigen::MatrixXd rho2;
+                this->ee_compute_rho(Xcd_to_Xd(this->invtrans_proj*Xd_to_Xcd(eset_tmp.evec)), rho2, this->bitlist);
+                eset_tmp.entanglement=this->ee_eval_rho(rho2);
+            }
+            this->Eigen_Sets.push_back(eset_tmp);
+        }
+    }
+    sort(this->Eigen_Sets.begin(), this->Eigen_Sets.end(), compare_eigen_set);
+    return true;
 }
 //void Scars::diag_scar_H_spectra(string invpls, int nvec1, int nvec2){
 //    if (invpls=="pls") {
@@ -436,14 +584,30 @@ void Scars::diag_scar_H_inv(string invpls, bool calculatees, bool calculateph){
 //        sort(this->Eigen_Sets.begin(), this->Eigen_Sets.end(), compare_eigen_set);
 //    }
 //}
-void Scars::Show_Eigen_Sets(int range, bool printes, bool printph){
+void Scars::Show_Eigen_Sets(int range, bool printtrans, bool printes, bool printph){
     range/=2;
     int N=this->Eigen_Sets.size();
+    
+    cout<<"E,   Inv,   ";
+    if (printtrans) {
+        cout<<"Trans,   ";
+    }
+    if (printes) {
+        cout<<"Entropy,   ";
+    }
+    if (printph) {
+        cout<<"PH,   ";
+    }
+    cout<<endl;
+    
     if (N%2==1) {
         N=(N-1)/2;
         range=min(range, N);
         for (int i=N-range; i<=N+range; i++) {
             cout<<setprecision(6)<<setw(15)<<chop(this->Eigen_Sets[i].eval)<<",   "<<printparity(this->Eigen_Sets[i].parity);
+            if (printtrans) {
+                cout<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].trans);
+            }
             if (printph) {
                 cout<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].particlehole);
             }
@@ -458,6 +622,9 @@ void Scars::Show_Eigen_Sets(int range, bool printes, bool printph){
         range=min(range-1, N-1);
         for (int i=N-range-1; i<=N+range; i++) {
             cout<<setprecision(6)<<setw(15)<<chop(this->Eigen_Sets[i].eval)<<",   "<<printparity(this->Eigen_Sets[i].parity);
+            if (printtrans) {
+                cout<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].trans);
+            }
             if (printph) {
                 cout<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].particlehole);
             }
@@ -474,7 +641,7 @@ void Scars::Show_Eigen_Sets(int range, bool printes, bool printph){
             zeromodedim++;
         }
     }
-    cout<<"Zero mode dimension = "<<zeromodedim<<endl;
+//    cout<<"Zero mode dimension = "<<zeromodedim<<endl;
 }
 void Scars::Print_Eigen_Sets(int range, string filename, bool printes, bool printph){
     ofstream outfile(filename);
@@ -552,7 +719,68 @@ void Scars::Translation_setup(){
     }
     
     this->Transmat.setFromTriplets(triples.begin(), triples.end());
-    //cout<<"Transmat=\n"<<this->Transmat<<endl;
+    if (this->No%2==0) {
+        this->Transmat_halfL=Trans_pow(this->No/2);
+    }
+}
+bool Scars::make_invtrans_proj(bool inv, bool trans){
+    Eigen::MatrixXd InvTransMat, invmatrix;
+    if (inv) {
+        invmatrix=this->P_pls;
+        InvTransMat=this->P_pls.adjoint()*this->Transmat_halfL*this->P_pls;
+    }
+    else {
+        invmatrix=this->P_min;
+        InvTransMat=this->P_min.adjoint()*this->Transmat_halfL*this->P_min;
+    }
+    
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,-1,-1>> es;
+    es.compute(InvTransMat);
+    vector<double> InvTransEval=vector<double>(es.eigenvalues().size(), 0.);
+    for (int i=0; i<InvTransEval.size(); i++) {
+        InvTransEval[i]=es.eigenvalues()[i];
+    }
+    vector<Eigen::VectorXd> InvTransEvec=vector<Eigen::VectorXd>(es.eigenvalues().size());
+    for (int i=0; i<InvTransEvec.size(); i++) {
+        InvTransEvec[i]=Eigen::VectorXd::Zero(invmatrix.cols());
+        for (int j=0; j<invmatrix.cols(); j++) {
+            InvTransEvec[i](j)=es.eigenvectors().col(i)[j];
+        }
+    }
+    int Eval_N=0;
+    for (unsigned i=0; i<InvTransEval.size(); i++) {
+        if (!(inv ^ trans) and InvTransEval[i]>0) {
+            Eval_N++;
+        }
+        else if ((inv ^ trans) and InvTransEval[i]<0) {
+            Eval_N++;
+        }
+    }
+    
+    this->invtrans_proj=Eigen::MatrixXd::Zero(this->bitlist.size(), Eval_N);
+    int counter=0;
+    for (unsigned i=0; i<InvTransEval.size(); i++) {
+        if (inv and trans and InvTransEval[i]>0) {
+            this->invtrans_proj.col(counter++)=this->P_pls*InvTransEvec[i];
+        }
+        else if (inv and !trans and InvTransEval[i]<0) {
+            this->invtrans_proj.col(counter++)=this->P_pls*InvTransEvec[i];
+        }
+        else if (!inv and trans and InvTransEval[i]<0) {
+            this->invtrans_proj.col(counter++)=this->P_min*InvTransEvec[i];
+        }
+        else if (!inv and !trans and InvTransEval[i]>0) {
+            this->invtrans_proj.col(counter++)=this->P_min*InvTransEvec[i];
+        }
+    }
+    //invtrans_proj.ajd() * invtrans_proj = Identity.
+    
+    if (invtrans_proj.cols()==0) {
+        return false;
+    }
+    else {
+        return true;
+    }
 }
 Eigen::SparseMatrix<double> Scars::Trans_pow(int x){
     if (x<1) {
@@ -575,23 +803,35 @@ void Scars::print_commutators(){
     cout<<"{C, P}=\n"<<commutator(this->PHmat, this->Invmat, false)<<endl;
     
     if (this->bound_cond=="PBC") {
-        cout<<"[P, T]=\n"<<commutator(this->Invmat, this->Transmat, true)<<endl;
-        cout<<"{P, T}=\n"<<commutator(this->Invmat, this->Transmat, false)<<endl;
+        cout<<"[H, T]=\n"<<commutator(this->H_spamatrix, this->Transmat, true)<<endl;
         
-        cout<<"[P, T^L]=\n"<<commutator(this->Invmat, this->Trans_pow(this->No), true)<<endl;
+        cout<<"[P, T]=\n"<<commutator(this->Invmat, this->Transmat, true)<<endl;
+        
+        if (this->No%2==0) {
+            cout<<"[P, T^(L/2)]=\n"<<commutator(this->Invmat, this->Trans_pow(this->No/2), true)<<endl;
+        }
+        else {
+            cout<<"[P, T^L]=\n"<<commutator(this->Invmat, this->Trans_pow(this->No), true)<<endl;
+        }
+        
+        //cout<<"{P, T}=\n"<<commutator(this->Invmat, this->Transmat, false)<<endl;
+        
+        //cout<<"[P, T^L]=\n"<<commutator(this->Invmat, this->Trans_pow(this->No), true)<<endl;
         //cout<<"{P, T^L}=\n"<<commutator(this->Invmat, this->Trans_pow(this->No), false)<<endl;
         
-        cout<<"[P, T^(L/2)]=\n"<<commutator(this->Invmat, this->Trans_pow(this->No/2), true)<<endl;
+        //cout<<"[P, T^(L/2)]=\n"<<commutator(this->Invmat, this->Trans_pow(this->No/2), true)<<endl;
         //cout<<"{P, T^(L/2)}=\n"<<commutator(this->Invmat, this->Trans_pow(this->No/2), false)<<endl;
         
         cout<<"[C, T]=\n"<<commutator(this->PHmat, this->Transmat, true)<<endl;
         cout<<"{C, T}=\n"<<commutator(this->PHmat, this->Transmat, false)<<endl;
         
-        cout<<"[C, T^L]=\n"<<commutator(this->PHmat, this->Trans_pow(this->No), true)<<endl;
-        cout<<"{C, T^L}=\n"<<commutator(this->PHmat, this->Trans_pow(this->No), false)<<endl;
+        //cout<<"[C, T^L]=\n"<<commutator(this->PHmat, this->Trans_pow(this->No), true)<<endl;
+        //cout<<"{C, T^L}=\n"<<commutator(this->PHmat, this->Trans_pow(this->No), false)<<endl;
         
-        cout<<"[C, T^(L/2)]=\n"<<commutator(this->PHmat, this->Trans_pow(this->No/2), true)<<endl;
-        cout<<"{C, T^(L/2)}=\n"<<commutator(this->PHmat, this->Trans_pow(this->No/2), false)<<endl;
+        //cout<<"[C, T^(L/2)]=\n"<<commutator(this->PHmat, this->Trans_pow(this->No/2), true)<<endl;
+        //cout<<"{C, T^(L/2)}=\n"<<commutator(this->PHmat, this->Trans_pow(this->No/2), false)<<endl;
+        
+        cout<<"T^L = \n"<<this->Transmat_halfL*this->Transmat_halfL<<endl;
     }
 }
 //MPS test state.
@@ -748,28 +988,66 @@ Scars::~Scars(){};
 
 void quantum_scar(string filename){
     int no, rangeS, cutsite, nvec1, nvec2;
-    string bound_cond;
+    string type, bound_cond;
     
     ifstream infile(filename);
     infile>>no>>rangeS;
-    infile>>bound_cond;
+    infile>>type>>bound_cond;
     infile>>cutsite;
     infile>>nvec1>>nvec2;
     infile.close();
     
-    cout<<"no, rangeS, boundary_cond="<<no<<" "<<rangeS<<" "<<bound_cond<<endl;
+    cout<<"no, rangeS, type, boundary_cond="<<no<<" "<<rangeS<<" "<<type<<" "<<bound_cond<<endl;
     
-    Scars qscars(no, rangeS, bound_cond, nvec1, nvec2);
+    Scars qscars(no, rangeS, type, bound_cond, nvec1, nvec2);
+    
+    cout<<"$ project H into inverse sector"<<endl;
+    qscars.proj_H_invsector();
     
     cout<<"H.dim()="<<qscars.bitlist.size()<<endl;
     
+//    qscars.print_commutators();
+    
     qscars.ee_setup(0, qscars.No/2, qscars.bitlist);
     
-    bool calculatees=true, calculateph=true, showes=true, showph=true;
-    qscars.diag_scar_H_inv("both", calculatees, calculateph);
+    bool calculatetrans=true, calculatees=true, calculateph=true, showes=true, showph=false, showtrans=true;
+//    qscars.diag_scar_H_inv("both", calculatetrans, calculatees, calculateph);
+//    qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
     
-    qscars.Show_Eigen_Sets(50001, showes, showph);
-    qscars.Print_Eigen_Sets(50001, "E_S_Plot.txt", showes, showph);
+    cout<<"\nFull Symmetry, true, true"<<endl;
+    if (qscars.diag_fullsymmetry(true, true, true)) {
+        qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
+        qscars.Print_Eigen_Sets(50000, "E_S_Plot.txt", showes, showph);
+    }
+
+//    cout<<"\nFull Symmetry, true, false"<<endl;
+//    if (qscars.diag_fullsymmetry(true, false, true)) {
+//        qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
+//    }
+//
+//    cout<<"\nFull Symmetry, false, true"<<endl;
+//    if (qscars.diag_fullsymmetry(false, true, true)) {
+//        qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
+//    }
+//
+//    cout<<"\nFull Symmetry, false, false"<<endl;
+//    if (qscars.diag_fullsymmetry(false, false, true)) {
+//        qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
+//    }
+    
+    
+    
+//    qscars.Print_Eigen_Sets(50000, "E_S_Plot.txt", showes, showph);
+
+    vector<double> leveldiff=leveldifference(qscars.get_energies("both"));
+
+    ofstream outfile("levelsta.txt");
+    for (int i=0; i<leveldiff.size(); i++) {
+        outfile<<leveldiff[i]<<endl;
+    }
+    outfile.close();
+    
+    
     
 //    cout<<"Hamiltonian matrix is\n"<<qscars.get_H()<<endl;
     

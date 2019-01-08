@@ -10,4 +10,5 @@
 
 int main(int argc, const char * argv[]) {
     quantum_scar("params");
+//    quantum_scar_mps("params");
 }

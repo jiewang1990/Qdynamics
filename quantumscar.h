@@ -17,6 +17,7 @@
 //#include <SymEigsSolver.h>
 
 void quantum_scar(string filename);
+void quantum_scar_mps(string filename);
 //void quantum_scar(int no, int np, int momentum, bool needM, bool useqh, int rangeS);
 
 struct eigen_set{
@@ -72,13 +73,12 @@ private:
     int rangeS;
     int nvec1, nvec2;
     string bound_cond, type;
-    bool fullsymmetry=true;
+    bool fullsymmetry=true;//parity + T^(L/2).
+    bool constrain;
     void init(int);
     void diag_setup(string);
     void make_mlist(string);
-    void make_mlist_PXP();
-    void make_mlist_PX2P();
-    void generate_scar_hilberspace();
+    void generate_hilberspace();
     vector<matrix> matrixlist_M_h1h1;
     inline bool legal_state(state_int);//to see if a state satisfies quantum-scar constrain: adjacent two sites has at least 0 for any site.
     //inline bool flip_state(state_int, int);//to see if to flip a spin or not.
@@ -86,7 +86,8 @@ private:
     
 public:
     Scars();
-    Scars(int, int, string, string, int, int);
+    Scars(int, int, string, bool, string);
+    void out_info();
     void usefullsymmetry(bool);
     Msector Diag;
     void diag_scar();
@@ -97,9 +98,6 @@ public:
     
     //Inversion.
     void Inversion_setup(), proj_H_invsector(), show_scar_energy_inv(int, bool);
-    void Show_Eigen_Sets(int, bool printtrans=false, bool printes=false, bool printph=false);
-//    void Show_Eigen_Sets_ph(int, bool printes=false);
-    void Print_Eigen_Sets(int, string, bool printes=false, bool printph=false);
     void diag_scar_H_inv(string, bool calculatetrans=false, bool calculatees=false, bool calculateph=false);//diag with parity.
     bool diag_fullsymmetry(bool, bool, bool);//use parity and translation.
 //    void diag_scar_H_spectra(string, int, int);//diag with parity, and spectra.
@@ -109,10 +107,14 @@ public:
     int Eval_N_pls, Eval_N_min;
     Eigen::MatrixXd P_pls, P_min, H_inv_pls, H_inv_min;
     
+    //Eigen states.
+    void Show_Eigen_Sets(int, bool printtrans=false, bool printes=false, bool printph=false);
+    void Print_Eigen_Sets(int, string, bool printes=false, bool printph=false);
+    void pick_Eigen_Sets(double E1, double E2, double S1, double S2, vector<eigen_set>& eigenset, vector<Eigen::VectorXd>& spectrum);
+    
     //project into Inv+Trans sector.
-    void proj_full_sym();
     Eigen::MatrixXd reducedH;
-    bool make_invtrans_proj(bool, bool);
+    bool make_invtrans_proj(bool);
     Eigen::MatrixXd invtrans_proj;
     void make_inversion_proj();
     
@@ -131,9 +133,12 @@ public:
     //MPS test state.
     Eigen::MatrixXd B0 ,B1, C0, C1;
     void mps_run(int);
+    void mps_run();
     void test_mps_wfs();
     Eigen::VectorXd mpswf;
+    Eigen::VectorXd mpswf0, mpswf1, mpswf_pls, mpswf_min;
     void print_mpswf();
+    vector<Eigen::VectorXd> mps_entanglement();
     
     ~Scars();
     

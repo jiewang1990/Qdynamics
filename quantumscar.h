@@ -16,9 +16,15 @@
 //#include <MatOp/SparseSymMatProd.h>
 //#include <SymEigsSolver.h>
 
+void quantum_scar_new(string filename);
 void quantum_scar(string filename);
+void quantum_scar_invt(string filename);
 void quantum_scar_mps(string filename);
 //void quantum_scar(int no, int np, int momentum, bool needM, bool useqh, int rangeS);
+void plot_H_dim(int, int, string);
+
+//Eigen::SparseMatrix<double> SparseRemoveRow(Eigen::SparseMatrix<double> input, int ind, vector<state_int>& bit_list, vector<state>& state_list);
+Eigen::SparseMatrix<double> SparseLinearComb(Eigen::SparseMatrix<double> input, int ind1, int ind2, double coeff1, double coeff2);
 
 struct eigen_set{
     bool parity;
@@ -27,6 +33,7 @@ struct eigen_set{
     double eval;
     double entanglement;
     double trans;
+    complex<double> singletrans1, singletrans2;
 };
 inline bool compare_eigen_set(const eigen_set& inputa, const eigen_set& inputb) {
     double dif=inputa.eval-inputb.eval;
@@ -50,6 +57,12 @@ inline bool compare_eigen_set(const eigen_set& inputa, const eigen_set& inputb) 
         }
     }
 }
+inline bool compare_vecdouble(const vector<double>& a, const vector<double>& b) {
+    if (a[0]<b[0]) {
+        return true;
+    }
+    else return false;
+}
 inline char printparity(const bool& input) {
     if (input) return '+'; else return '-';
 }
@@ -72,6 +85,7 @@ class Scars:public Msector{
 private:
     int rangeS;
     int nvec1, nvec2;
+    int replu_range, connectX;
     string bound_cond, type;
     bool fullsymmetry=true;//parity + T^(L/2).
     bool constrain;
@@ -81,26 +95,35 @@ private:
     void generate_hilberspace();
     vector<matrix> matrixlist_M_h1h1;
     inline bool legal_state(state_int);//to see if a state satisfies quantum-scar constrain: adjacent two sites has at least 0 for any site.
+//    inline bool glegal_state(state_int);//generalized-legal_state, satisfies replusion constraint.
     //inline bool flip_state(state_int, int);//to see if to flip a spin or not.
     Eigen::SparseMatrix<double> H_spamatrix;
     
 public:
     Scars();
-    Scars(int, int, string, bool, string);
+    Scars(int, int, string, bool, string, int replu_range=1, int connectX=1);
     void out_info();
     void usefullsymmetry(bool);
     Msector Diag;
-    void diag_scar();
     void show_scar_energy(int);
     Eigen::SparseMatrix<double> get_H();
     vector<double> get_energies(string);
     void setup_symmetry();
     
+    int get_H_dim();
+    
+    //assist.
+    Eigen::SparseMatrix<double> SparseRemoveRow(Eigen::SparseMatrix<double> input, int ind, vector<state_int>& bit_list, vector<state>& state_list);
+//    Eigen::SparseMatrix<double> SparseLinearComb(Eigen::SparseMatrix<double> input, int ind1, int ind2, double coeff1, double coeff2);
+    
     //Inversion.
     void Inversion_setup(), proj_H_invsector(), show_scar_energy_inv(int, bool);
+    void diag_scar_H();
     void diag_scar_H_inv(string, bool calculatetrans=false, bool calculatees=false, bool calculateph=false);//diag with parity.
-    bool diag_fullsymmetry(bool, bool, bool);//use parity and translation.
-//    void diag_scar_H_spectra(string, int, int);//diag with parity, and spectra.
+    bool diag_scar_H_inv_halft(bool, bool, bool);//use parity and half-translation.
+    bool diag_scar_H_inv_t(bool, int, bool calculateee=false);
+    //void diag_scar_H_spectra(string, int, int);//diag with parity, and spectra.
+    bool diag_scar(bool inv, int Ky, string mode, bool calculateee=false);
     vector<eigen_set> Eigen_Sets, Eigen_Sets_pls, Eigen_Sets_min;
     Eigen::SparseMatrix<double> Invmat;
     void make_Invmat();
@@ -109,14 +132,28 @@ public:
     
     //Eigen states.
     void Show_Eigen_Sets(int, bool printtrans=false, bool printes=false, bool printph=false);
-    void Print_Eigen_Sets(int, string, bool printes=false, bool printph=false);
+    void Print_Eigen_Sets(int, string, bool printes=false, bool printph=false, bool printtrans=false);
+    void Print_Eigen_Sets2(int, string, bool printes=false, bool printtrans=false);
     void pick_Eigen_Sets(double E1, double E2, double S1, double S2, vector<eigen_set>& eigenset, vector<Eigen::VectorXd>& spectrum);
     
     //project into Inv+Trans sector.
     Eigen::MatrixXd reducedH;
-    bool make_invtrans_proj(bool);
-    Eigen::MatrixXd invtrans_proj;
+    bool make_invtrans_proj(bool, bool, bool zerosector=false);
+    //bool make_invtrans_proj_0sector(bool);
+    Eigen::SparseMatrix<double> invtrans_proj;
+    bool make_inv_trans0pi_proj(bool, bool);
+    Eigen::MatrixXd inv_trans0pi_proj;
+    //vector<state> statelist_0pi;
     void make_inversion_proj();
+    Eigen::SparseMatrix<double> shrinkMatrix_trans;
+    Eigen::SparseMatrix<double> shrinkMatrix_trans_inv;
+    
+    //make scar shrinker.
+    void makeScarShrinker_trans(int);//project into 0 or pi sector.
+    void makeScarShrinker_trans_inv(bool);
+    vector<state> statelist_M_trans_int;
+    vector<state_int> bitlist_trans_int;
+    void print_bitlist_trans_int();
     
     //Particle-Hole.
     void ParticleHole_setup();
@@ -129,6 +166,9 @@ public:
     Eigen::SparseMatrix<double> Trans_pow(int);
     
     void print_commutators();
+    
+    //Time evolution.
+    void Time_Evolution(const double dt, const int Nt, const state_int& state);
     
     //MPS test state.
     Eigen::MatrixXd B0 ,B1, C0, C1;

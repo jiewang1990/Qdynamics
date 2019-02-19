@@ -101,14 +101,14 @@ private:
     
 public:
     Scars();
-    Scars(int, int, string, bool, string, int replu_range=1, int connectX=1);
+    Scars(int, int, string, bool, string, int replu_range=1, int connectX=1, bool makeinvproj=true);
     void out_info();
     void usefullsymmetry(bool);
     Msector Diag;
     void show_scar_energy(int);
     Eigen::SparseMatrix<double> get_H();
     vector<double> get_energies(string);
-    void setup_symmetry();
+    void setup_symmetry(bool makeinvproj=true);
     
     int get_H_dim();
     
@@ -117,13 +117,13 @@ public:
 //    Eigen::SparseMatrix<double> SparseLinearComb(Eigen::SparseMatrix<double> input, int ind1, int ind2, double coeff1, double coeff2);
     
     //Inversion.
-    void Inversion_setup(), proj_H_invsector(), show_scar_energy_inv(int, bool);
+    void Inversion_setup(bool makePlsmin=true), proj_H_invsector(), show_scar_energy_inv(int, bool);
     void diag_scar_H();
     void diag_scar_H_inv(string, bool calculatetrans=false, bool calculatees=false, bool calculateph=false);//diag with parity.
     bool diag_scar_H_inv_halft(bool, bool, bool);//use parity and half-translation.
     bool diag_scar_H_inv_t(bool, int, bool calculateee=false);
     //void diag_scar_H_spectra(string, int, int);//diag with parity, and spectra.
-    bool diag_scar(bool inv, int Ky, string mode, bool calculateee=false);
+    bool diag_scar(bool inv, int Ky, string mode, bool calculateee=true, bool calculatet=true, bool calculatett=true, bool calculatethalf=true);
     vector<eigen_set> Eigen_Sets, Eigen_Sets_pls, Eigen_Sets_min;
     Eigen::SparseMatrix<double> Invmat;
     void make_Invmat();

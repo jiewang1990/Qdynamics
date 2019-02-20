@@ -44,7 +44,7 @@ Eigen::SparseMatrix<double> SparseLinearComb(Eigen::SparseMatrix<double> input, 
 }
 
 Scars::Scars(){};
-Scars::Scars(int no_t, int ranges_t, string type_t, bool constrain_t, string bound_cond_t, int replu_range_t, int connectX_t, bool makeinvproj):rangeS(ranges_t), type(type_t), constrain(constrain_t), bound_cond(bound_cond_t), replu_range(replu_range_t), connectX(connectX_t) {
+Scars::Scars(int no_t, int ranges_t, string type_t, bool constrain_t, string bound_cond_t, int replu_range_t, int connectX_t, bool quickmode_t):rangeS(ranges_t), type(type_t), constrain(constrain_t), bound_cond(bound_cond_t), replu_range(replu_range_t), connectX(connectX_t), quickmode(quickmode_t) {
     this->init(no_t);
     //this->out_info();
     
@@ -53,7 +53,7 @@ Scars::Scars(int no_t, int ranges_t, string type_t, bool constrain_t, string bou
     
     //this->print_statelist();
     
-    this->setup_symmetry(makeinvproj);
+    this->setup_symmetry();
     //cout<<"done setup symmetry"<<endl;
 
     this->diag_setup(this->type);
@@ -96,12 +96,20 @@ void Scars::usefullsymmetry(bool use){
         this->fullsymmetry=false;
     }
 }
-void Scars::setup_symmetry(bool makeinvproj){
-    if (this->bound_cond=="PBC") {
+void Scars::setup_symmetry(){
+    if (this->bound_cond=="PBC" and this->quickmode) {
         this->Translation_setup();
         cout<<"done translation"<<endl;
-        this->Inversion_setup(makeinvproj);
+        this->Inversion_setup();
         cout<<"done inversion"<<endl;
+    }
+    else if (this->bound_cond=="PBC" and !this->quickmode) {
+        this->Translation_setup();
+        cout<<"done translation"<<endl;
+        this->Inversion_setup();
+        cout<<"done inversion"<<endl;
+        this->make_inversion_proj();
+        cout<<"done inversion proj"<<endl;
         this->ParticleHole_setup();
         cout<<"done particlehole"<<endl;
     }
@@ -178,38 +186,6 @@ inline bool Scars::legal_state(state_int input){
         exit(0);
     }
 }
-//inline bool Scars::flip_state(state_int input, int i){
-//    if (this->bound_cond=="PBC") {
-//        if (this->one<<supermod(i-1, this->No)&input and this->one<<supermod(i+1, this->No)&input) {
-//            return false;
-//        }
-//        return true;
-//    }
-//    else if (this->bound_cond=="OBC") {
-//        if (i!=0 and i!=this->No-1) {
-//            if (this->one<<supermod(i-1, this->No)&input and this->one<<supermod(i+1, this->No)&input) {
-//                return false;
-//            }
-//            return true;
-//        }
-//        else if (i==0) {
-//            if (this->one<<supermod(i+1, this->No)&input) {
-//                return false;
-//            }
-//            return true;
-//        }
-//        else if (i==this->No-1) {
-//            if (this->one<<supermod(i-1, this->No)&input) {
-//                return false;
-//            }
-//            return true;
-//        }
-//    }
-//    else {
-//        cout<<"unrecognized boundary condition"<<endl;
-//        exit(0);
-//    }
-//}
 void Scars::generate_hilberspace(){
     this->basis.clear();
     for (state_int i=0; i<this->one<<this->No; i++) {
@@ -483,7 +459,7 @@ void Scars::show_scar_energy(int range){
 }
 
 //Inversion.
-void Scars::make_Invmat(){
+void Scars::Inversion_setup(){
     this->Invmat=Eigen::SparseMatrix<double>(this->bitlist.size(), this->bitlist.size());
     
     vector<Eigen::Triplet<double>> triples; triples.clear();
@@ -503,12 +479,6 @@ void Scars::make_Invmat(){
         }
     }
     this->Invmat.setFromTriplets(triples.begin(), triples.end());
-}
-void Scars::Inversion_setup(bool makeinvproj){
-    this->make_Invmat();
-    if (makeinvproj) {
-        this->make_inversion_proj();
-    }
 }
 void Scars::make_inversion_proj(){
     //setup the dimension of inversion symmetry, anti-symmetry sector.
@@ -794,69 +764,6 @@ bool Scars::diag_scar_H_inv_halft(bool inv, bool trans, bool calculatees){
 //        return true;
 //    }
 }
-bool Scars::diag_scar_H_inv_t(bool inv, int Ky, bool calculatees){
-    cout<<"@@@@@ inv, Ky="<<inv<<" "<<Ky<<endl;
-    this->makeScarShrinker_trans(Ky);
-    this->makeScarShrinker_trans_inv(inv);
-    
-//    cout<<"*** statelist="<<endl;
-//    this->print_statelist();
-//    cout<<"*** shrinkermatrix_trans=\n"<<this->shrinkMatrix_trans<<endl;
-//    cout<<"*** shrinkermatrix_trans_inv=\n"<<this->shrinkMatrix_trans_inv<<endl;
-//    exit(0);
-    
-    bool zerosector=false;
-    //cout<<this->invtrans_proj.cols()<<endl;
-    //this->reducedH=this->invtrans_proj.adjoint()*this->H_spamatrix*this->invtrans_proj;
-    this->reducedH=this->shrinkMatrix_trans_inv*this->H_spamatrix*this->shrinkMatrix_trans_inv.adjoint();
-    
-    //cout<<"dim reduced H = "<<this->reducedH.cols()<<" "<<this->reducedH.rows()<<endl;
-    cout<<"reducedH.dim()="<<this->reducedH.cols()<<endl;
-    if (this->reducedH.cols()==0) {
-        return false;
-    }
-    
-    //cout<<"@@ begin diagonalize (-) @@"<<endl;
-    //cout<<"@@ begin diagonalize, reducedH.size="<<this->reducedH.cols()<<" "<<this->reducedH.rows()<<endl;
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,-1,-1>> es;
-    es.compute(this->reducedH);
-    
-    //cout<<"this reduced H = \n"<<this->reducedH<<endl;
-    
-    int nthreads=omp_get_max_threads();
-    vector<vector<eigen_set>> EigenSets(nthreads);
-    for (int i=0; i<nthreads; i++) {
-        EigenSets[i].clear();
-    }
-    this->Eigen_Sets.clear();
-    
-    #pragma omp parallel for
-    for (int i=0; i<es.eigenvalues().size(); i++) {
-        int coren=omp_get_thread_num();
-        eigen_set eset_tmp;
-        eset_tmp.parity=inv;
-        //eset_tmp.trans=2*trans-1;
-        eset_tmp.evec=this->shrinkMatrix_trans_inv.adjoint()*es.eigenvectors().col(i);
-        eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
-        eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
-        eset_tmp.eval=es.eigenvalues()[i];
-        if (calculatees) {
-            Eigen::MatrixXd rho2;
-            this->ee_compute_rho(eset_tmp.evec, rho2, this->bitlist);
-            eset_tmp.entanglement=this->ee_eval_rho(rho2);
-        }
-        EigenSets[coren].push_back(eset_tmp);
-        //this->Eigen_Sets.push_back(eset_tmp);
-    }
-    for (int i=0; i<nthreads; i++) {
-        for (int j=0; j<EigenSets[i].size(); j++) {
-            this->Eigen_Sets.push_back(EigenSets[i][j]);
-        }
-    }
-    
-    sort(this->Eigen_Sets.begin(), this->Eigen_Sets.end(), compare_eigen_set);
-    return true;
-}
 bool Scars::diag_scar(bool inv, int Ky, string mode, bool calculatees, bool calculatet, bool calculatett, bool calculatethalf) {
     bool trans;
     if (Ky==1) {
@@ -899,28 +806,68 @@ bool Scars::diag_scar(bool inv, int Ky, string mode, bool calculatees, bool calc
     }
     this->Eigen_Sets.clear();
     
-    #pragma omp parallel for
+//    #pragma omp parallel for
     for (state_int i=0; i<es.eigenvalues().size(); i++) {
         state_int coren=omp_get_thread_num();
         eigen_set eset_tmp;
         eset_tmp.parity=inv;
         //eset_tmp.trans=2*trans-1;
         eset_tmp.evec=localshrink.adjoint()*es.eigenvectors().col(i);
-        if (calculatethalf) {
-            eset_tmp.trans=chop(eset_tmp.evec.dot(this->Transmat_halfL*eset_tmp.evec));
-        }
-        if (calculatet) {
-            eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
-        }
-        if (calculatett) {
-            eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
-        }
         eset_tmp.eval=es.eigenvalues()[i];
-        if (calculatees) {
-            Eigen::MatrixXd rho2;
-            this->ee_compute_rho(eset_tmp.evec, rho2, this->bitlist);
-            eset_tmp.entanglement=this->ee_eval_rho(rho2);
+        
+        if (this->quickmode and eset_tmp.eval<=0) {
+            //cout<<"E="<<eset_tmp.eval<<endl;
+            if (calculatethalf) {
+                eset_tmp.trans=chop(eset_tmp.evec.dot(this->Transmat_halfL*eset_tmp.evec));
+            }
+            if (calculatet) {
+                eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
+            }
+            if (calculatett) {
+                eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
+            }
+            if (calculatees) {
+                Eigen::MatrixXd rho2;
+                Eigen::MatrixXd svdmat;
+                //cout<<"to redmindmat"<<endl;
+                //this->ee_compute_rho_redmindmat(eset_tmp.evec, rho2);
+                //cout<<"done redmindmat"<<endl;
+                //cout<<"to compute ent, dm"<<endl;
+                //eset_tmp.entanglement=this->ee_eval_rho(rho2);
+                //cout<<"done ent, dm, "<<eset_tmp.entanglement<<endl;
+                
+                //cout<<"to svd"<<endl;
+                this->generate_svdmat(eset_tmp.evec, svdmat);
+                //cout<<"done svd"<<endl;
+                //cout<<"to compute end, svd"<<endl;
+                eset_tmp.entanglement=ee_eval_bdcsvd(svdmat);
+                //cout<<"done ent, svd, "<<eset_tmp.entanglement<<endl;
+                //cout<<"done calculate ent"<<endl;
+            }
         }
+        else if (this->quickmode and eset_tmp.eval>0) {
+            eset_tmp.trans=0.;
+            eset_tmp.singletrans1=0.;
+            eset_tmp.singletrans2=0.;
+            eset_tmp.entanglement=0.;
+        }
+        else if (!this->quickmode) {
+            if (calculatethalf) {
+                eset_tmp.trans=chop(eset_tmp.evec.dot(this->Transmat_halfL*eset_tmp.evec));
+            }
+            if (calculatet) {
+                eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
+            }
+            if (calculatett) {
+                eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
+            }
+            if (calculatees) {
+                Eigen::MatrixXd rho2;
+                this->ee_compute_rho(eset_tmp.evec, rho2, this->bitlist);
+                eset_tmp.entanglement=this->ee_eval_rho(rho2);
+            }
+        }
+        
         EigenSets[coren].push_back(eset_tmp);
         //this->Eigen_Sets.push_back(eset_tmp);
     }
@@ -1078,11 +1025,6 @@ void Scars::Show_Eigen_Sets(int range, bool printtrans, bool printes, bool print
 void Scars::Print_Eigen_Sets2(int range, string filename, bool printes, bool printtrans){
     ofstream outfile("data/"+filename);
     
-    //cout<<"print"<<endl;
-    
-    range/=2;
-    int N=this->Eigen_Sets.size();
-    
     outfile<<"      E,      Inv,      ";
     if (printtrans) {
         outfile<<"t^{L/2},      ";
@@ -1094,10 +1036,44 @@ void Scars::Print_Eigen_Sets2(int range, string filename, bool printes, bool pri
     }
     outfile<<endl;
     
-    if (N%2==1) {
-        N=(N-1)/2;
-        range=min(range, N);
-        for (int i=N-range; i<=N+range; i++) {
+    if (range!=-1) {
+        range/=2;
+        int N=this->Eigen_Sets.size();
+        if (N%2==1) {
+            N=(N-1)/2;
+            range=min(range, N);
+            for (int i=N-range; i<=N+range; i++) {
+                outfile<<setprecision(6)<<setw(10)<<chop(this->Eigen_Sets[i].eval)<<",   "<<printparity(this->Eigen_Sets[i].parity);
+                if (printtrans) {
+                    outfile<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].trans);
+                    outfile<<",   "<<setprecision(5)<<setw(10)<<chop(this->Eigen_Sets[i].singletrans1);
+                    outfile<<",   "<<setprecision(5)<<setw(10)<<chop(this->Eigen_Sets[i].singletrans2);
+                }
+                if (printes) {
+                    outfile<<",   "<<setw(15)<<chop(this->Eigen_Sets[i].entanglement);
+                }
+                outfile<<endl;
+            }
+        }
+        else {
+            N=N/2;
+            range=min(range-1, N-1);
+            for (int i=N-range-1; i<=N+range; i++) {
+                outfile<<setprecision(6)<<setw(15)<<chop(this->Eigen_Sets[i].eval)<<",   "<<printparity(this->Eigen_Sets[i].parity);
+                if (printtrans) {
+                    outfile<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].trans);
+                    outfile<<",   "<<setprecision(5)<<setw(10)<<chop(this->Eigen_Sets[i].singletrans1);
+                    outfile<<",   "<<setprecision(5)<<setw(10)<<chop(this->Eigen_Sets[i].singletrans2);
+                }
+                if (printes) {
+                    outfile<<",   "<<setw(15)<<chop(this->Eigen_Sets[i].entanglement);
+                }
+                outfile<<endl;
+            }
+        }
+    }
+    else {
+        for (int i=0; i<this->Eigen_Sets.size(); i++) {
             outfile<<setprecision(6)<<setw(10)<<chop(this->Eigen_Sets[i].eval)<<",   "<<printparity(this->Eigen_Sets[i].parity);
             if (printtrans) {
                 outfile<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].trans);
@@ -1110,22 +1086,7 @@ void Scars::Print_Eigen_Sets2(int range, string filename, bool printes, bool pri
             outfile<<endl;
         }
     }
-    else {
-        N=N/2;
-        range=min(range-1, N-1);
-        for (int i=N-range-1; i<=N+range; i++) {
-            outfile<<setprecision(6)<<setw(15)<<chop(this->Eigen_Sets[i].eval)<<",   "<<printparity(this->Eigen_Sets[i].parity);
-            if (printtrans) {
-                outfile<<",   "<<setw(6)<<chop(this->Eigen_Sets[i].trans);
-                outfile<<",   "<<setprecision(5)<<setw(10)<<chop(this->Eigen_Sets[i].singletrans1);
-                outfile<<",   "<<setprecision(5)<<setw(10)<<chop(this->Eigen_Sets[i].singletrans2);
-            }
-            if (printes) {
-                outfile<<",   "<<setw(15)<<chop(this->Eigen_Sets[i].entanglement);
-            }
-            outfile<<endl;
-        }
-    }
+    
     outfile.close();
 }
 void Scars::Print_Eigen_Sets(int range, string filename, bool printes, bool printph, bool printtrans){
@@ -1266,8 +1227,9 @@ void Scars::Translation_setup(){
     for (unsigned int i=0; i<this->bitlist.size(); i++) {
         state_int statein=this->bitlist[i], stateout=0; int sign=1;
         
-        cycle_bit(statein, stateout, this->No, 1, sign);
-        
+        //cycle_bit(statein, stateout, this->No, 1, sign);
+        stateout=cycle_bits(statein, this->No);        
+
         binaryit=lower_bound(this->bitlist.begin(), this->bitlist.end(), stateout);
         
         if (binaryit!=this->bitlist.end() and *binaryit==stateout) {
@@ -1282,7 +1244,7 @@ void Scars::Translation_setup(){
     }
     
     this->Transmat.setFromTriplets(triples.begin(), triples.end());
-//    cout<<"translation matrix=\n"<<this->Transmat<<endl;
+    //cout<<"translation matrix=\n"<<this->Transmat<<endl;
     
     if (this->No%2==0) {
         this->Transmat_halfL=Trans_pow(this->No/2);
@@ -1329,12 +1291,12 @@ bool Scars::make_invtrans_proj(bool inv, bool trans, bool zerosector){
     }
     int Eval_N=0;
     for (unsigned i=0; i<InvTransEval.size(); i++) {
-//        if (!(inv ^ this->one) and InvTransEval[i]>0) {
-//            Eval_N++;
-//        }
-//        else if ((inv ^ this->one) and InvTransEval[i]>0) {
-//            Eval_N++;
-//        }
+        //if (!(inv ^ this->one) and InvTransEval[i]>0) {
+        //    Eval_N++;
+        //}
+        //else if ((inv ^ this->one) and InvTransEval[i]>0) {
+        //    Eval_N++;
+        //}
         if ((inv and trans and InvTransEval[i]>0) or (!inv and !trans and InvTransEval[i]>0)) {
             Eval_N++;
         }
@@ -1345,27 +1307,27 @@ bool Scars::make_invtrans_proj(bool inv, bool trans, bool zerosector){
     
     Eigen::MatrixXd invtrans_proj0=Eigen::MatrixXd::Zero(this->bitlist.size(), Eval_N);
     this->invtrans_proj=Eigen::SparseMatrix<double>(this->bitlist.size(), Eval_N);
-//    vector<Eigen::Triplet<double>> triplets;
+    //vector<Eigen::Triplet<double>> triplets;
     int counter=0;
     for (unsigned i=0; i<InvTransEval.size(); i++) {
-//        if ((inv and trans and InvTransEval[i]>0) or (!inv and !trans and InvTransEval[i]>0)) {
-//            Eval_N++;
-//        }
-//        else if ((inv and !trans and InvTransEval[i]<0) or (!inv and trans and InvTransEval[i]<0)) {
-//            Eval_N++;
-//        }
-        
+        //if ((inv and trans and InvTransEval[i]>0) or (!inv and !trans and InvTransEval[i]>0)) {
+        //    Eval_N++;
+        //}
+        //else if ((inv and !trans and InvTransEval[i]<0) or (!inv and trans and InvTransEval[i]<0)) {
+        //    Eval_N++;
+        //}
+    
         if ((inv and trans and InvTransEval[i]>0) or (inv and !trans and InvTransEval[i]<0)) {
-//            for (int j=0; j<this->P_pls.rows(); j++) {
-//                triplets.push_back(Eigen::Triplet<double>)(counter++, j, (this->P_pls*InvTransEvec[i])(j));
-//            }
+            //for (int j=0; j<this->P_pls.rows(); j++) {
+            //    triplets.push_back(Eigen::Triplet<double>)(counter++, j, (this->P_pls*InvTransEvec[i])(j));
+            //}
             invtrans_proj0.col(counter++)=this->P_pls*InvTransEvec[i];
         }
         else if ((!inv and trans and InvTransEval[i]<0) and (!inv and !trans and InvTransEval[i]>0)) {
             invtrans_proj0.col(counter++)=this->P_min*InvTransEvec[i];
-//            for (int j=0; j<this->P_min.rows(); j++) {
-//                triplets.push_back(Eigen::Triplet<double>)(counter++, j, (this->P_min*InvTransEvec[i])(j));
-//            }
+            //for (int j=0; j<this->P_min.rows(); j++) {
+            //    triplets.push_back(Eigen::Triplet<double>)(counter++, j, (this->P_min*InvTransEvec[i])(j));
+            //}
         }
     }
     //invtrans_proj.ajd() * invtrans_proj = Identity.
@@ -1381,59 +1343,6 @@ bool Scars::make_invtrans_proj(bool inv, bool trans, bool zerosector){
         return true;
     }
 }
-//bool Scars::make_invtrans_proj_0sector(bool inv){
-//    Eigen::MatrixXd InvTransMat, invmatrix;
-//    if (inv) {
-//        invmatrix=this->P_pls;
-//        InvTransMat=this->P_pls.adjoint()*this->Transmat*this->P_pls;
-//    }
-//    else if (!inv) {
-//        invmatrix=this->P_min;
-//        InvTransMat=this->P_min.adjoint()*this->Transmat*this->P_min;
-//    }
-//
-//    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,-1,-1>> es;
-//    es.compute(InvTransMat);
-//    vector<double> InvTransEval=vector<double>(es.eigenvalues().size(), 0.);
-//    for (int i=0; i<InvTransEval.size(); i++) {
-//        InvTransEval[i]=es.eigenvalues()[i];
-//    }
-//    vector<Eigen::VectorXd> InvTransEvec=vector<Eigen::VectorXd>(es.eigenvalues().size());
-//    for (int i=0; i<InvTransEvec.size(); i++) {
-//        InvTransEvec[i]=Eigen::VectorXd::Zero(invmatrix.cols());
-//        for (int j=0; j<invmatrix.cols(); j++) {
-//            InvTransEvec[i](j)=es.eigenvectors().col(i)[j];
-//        }
-//    }
-//    int Eval_N=0;
-//    for (unsigned i=0; i<InvTransEval.size(); i++) {
-//        if (!(inv ^ this->one) and InvTransEval[i]>0) {
-//            Eval_N++;
-//        }
-//        else if ((inv ^ this->one) and InvTransEval[i]<0) {
-//            Eval_N++;
-//        }
-//    }
-//
-//    this->invtrans_proj=Eigen::MatrixXd::Zero(this->bitlist.size(), Eval_N);
-//    int counter=0;
-//    for (unsigned i=0; i<InvTransEval.size(); i++) {
-//        if (inv and InvTransEval[i]>0) {
-//            this->invtrans_proj.col(counter++)=this->P_pls*InvTransEvec[i];
-//        }
-//        else if (!inv and InvTransEval[i]<0) {
-//            this->invtrans_proj.col(counter++)=this->P_min*InvTransEvec[i];
-//        }
-//    }
-//    //invtrans_proj.ajd() * invtrans_proj = Identity.
-//
-//    if (invtrans_proj.cols()==0) {
-//        return false;
-//    }
-//    else {
-//        return true;
-//    }
-//}
 void Scars::makeScarShrinker_trans(int Ky){
     //Ky=1, -1 corresponds to 0 and pi sector.
     if (Ky!=1 and Ky!=-1) {
@@ -1535,9 +1444,6 @@ void Scars::makeScarShrinker_trans(int Ky){
     //cout<<this->shrinkMatrix_trans*this->shrinkMatrix_trans.adjoint()<<endl;//this is identity. both 1K and 2K state norm to 1. shrinkmatrix is not unitary (row neq col).
     //cout<<this->shrinkMatrix_trans.adjoint()*this->shrinkMatrix_trans<<endl;//this is not identity.
     //@@@@@@In my convention, the shrinkMatrix is a (2K index * 1K index) matrix. And (shrinkMatrix)*1K-state -> 2K-state.
-    
-//    cout<<"in shrink trans"<<endl;
-//    this->print_bitlist_2K();
 }
 void Scars::makeScarShrinker_trans_inv(bool inv){
     this->statelist_M_trans_int=this->statelist_2K;
@@ -1594,36 +1500,6 @@ void Scars::makeScarShrinker_trans_inv(bool inv){
                     it=find(this->bitlist_2K.begin(),this->bitlist_2K.end(),temp);
                     if(it!=this->bitlist_2K.end()) {
                         int ind=it-this->bitlist_2K.begin();
-                        
-//                        it=find(this->bitlist_trans_int.begin(),this->bitlist_trans_int.end(),temp);
-                        //TODO: there a lot to check.
-                        
-//                        if (find(avoidpoints.begin(),avoidpoints.end(),i)!=avoidpoints.end()) {
-//
-                        
-//                        cout<<"here"<<endl;
-                        
-//                        avoidpoints2.push_back(ind);
-//
-//                        }
-                        
-//                        else {
-//                            cout<<"avoid points, i="<<setw(3)<<i<<endl;
-//                            continue;
-//                        }
-                        
-                        
-//                        cout<<"found the bit, index= "<<ind<<",   "; print_bit(temp, No);
-                        
-//                        if (inv) {
-//                            this->shrinkMatrix_trans_inv=SparseLinearComb(this->shrinkMatrix_trans_inv, i, ind, +1., inv, this->bitlist_trans_int, this->statelist_M_trans_int);
-//                        }
-//                        else {
-//                            this->shrinkMatrix_trans_inv=SparseLinearComb(this->shrinkMatrix_trans_inv, i, ind, -1., inv, this->bitlist_trans_int, this->statelist_M_trans_int);
-//                        }
-                        
-//                        cout<<"in while, i, ind="<<i<<" "<<ind<<endl; print_bitlist_trans_int();
-                        
                         if (find(avoidpoints2.begin(),avoidpoints2.end(),i)==avoidpoints2.end()) {
                             if (inv) {
                                 this->shrinkMatrix_trans_inv=SparseLinearComb(this->shrinkMatrix_trans_inv, i, ind, +1., +1.);
@@ -1643,13 +1519,6 @@ void Scars::makeScarShrinker_trans_inv(bool inv){
         }
     }
     
-//    for (int i=0; i<avoidpoints.size(); i++) {
-//        cout<<"avoidpoints = "<<avoidpoints[i]<<endl;
-//    }
-//    for (int i=0; i<avoidpoints2.size(); i++) {
-//        cout<<"avoidpoints2 = "<<avoidpoints2[i]<<endl;
-//    }
-    
     Eigen::SparseMatrix<double> shrinktemp=Eigen::SparseMatrix<double>(this->shrinkMatrix_trans.cols(), this->shrinkMatrix_trans.rows()-avoidpoints.size()-avoidpoints2.size());
     bitlist_trans_int.clear();
     statelist_M_trans_int.clear();
@@ -1663,12 +1532,12 @@ void Scars::makeScarShrinker_trans_inv(bool inv){
         }
     }
     this->shrinkMatrix_trans_inv=shrinktemp.transpose();
-//    cout<<this->shrinkMatrix_trans.cols()<<" "<<this->shrinkMatrix_trans.rows()<<endl;
-//    cout<<this->shrinkMatrix_trans_inv.cols()<<" "<<this->shrinkMatrix_trans_inv.rows()<<endl;
-//    cout<<"shrinmatrix =\n"<<this->shrinkMatrix_trans<<endl;
-//    cout<<"shrinmatrix2=\n"<<this->shrinkMatrix_trans_inv<<endl;
-//    cout<<"inv="<<inv<<"\n"<<this->shrinkMatrix_trans_inv*this->shrinkMatrix_trans_inv.adjoint()<<endl;
-//    exit(0);
+    //cout<<this->shrinkMatrix_trans.cols()<<" "<<this->shrinkMatrix_trans.rows()<<endl;
+    //cout<<this->shrinkMatrix_trans_inv.cols()<<" "<<this->shrinkMatrix_trans_inv.rows()<<endl;
+    //cout<<"shrinmatrix =\n"<<this->shrinkMatrix_trans<<endl;
+    //cout<<"shrinmatrix2=\n"<<this->shrinkMatrix_trans_inv<<endl;
+    //cout<<"inv="<<inv<<"\n"<<this->shrinkMatrix_trans_inv*this->shrinkMatrix_trans_inv.adjoint()<<endl;
+    //exit(0);
 }
 Eigen::SparseMatrix<double> Scars::Trans_pow(int x){
     if (x<1) {
@@ -1726,18 +1595,11 @@ void Scars::print_commutators(){
 void Scars::Time_Evolution(const double dt, const int Nt, const state_int& state){
     cout<<"Time Evolution is for Z2 state 1010101... for the time being."<<endl;
     
-//    for (int i=0; i<this->All_States.size(); i++) {
-//        cout<<"i="<<i<<"  \n"<<this->All_States[i]<<endl;
-//    }
-
-//    cout<<"all states .size () = "<<this->All_States.size()<<endl;
-    
-    
     vector<state_int>::iterator binaryit=this->bitlist.begin();
     Eigen::VectorXcd weight=Eigen::VectorXcd::Zero(this->All_States.size());
     binaryit=lower_bound(this->bitlist.begin(), this->bitlist.end(), state);
     if (binaryit!=this->bitlist.end() and *binaryit==state) {
-//        cout<<"ind = "<<binaryit-this->bitlist.begin()<<endl;
+        //cout<<"ind = "<<binaryit-this->bitlist.begin()<<endl;
         for (int i=0; i<this->All_States.size(); i++) {
             weight(i)=this->All_States[i](binaryit-this->bitlist.begin());
         }
@@ -1746,10 +1608,9 @@ void Scars::Time_Evolution(const double dt, const int Nt, const state_int& state
         cout<<"cannot find input state in time evolution"<<endl;
         exit(0);
     }
-//    cout<<"weight = \n"<<weight<<endl;
+    //cout<<"weight = \n"<<weight<<endl;
     
     //entanglement.
-//    double entanglement;
     vector<vector<double>> entanglement;
     this->ee_setup(0, this->No/2, this->bitlist);
     
@@ -1768,10 +1629,10 @@ void Scars::Time_Evolution(const double dt, const int Nt, const state_int& state
         }
         Eigen::MatrixXcd rho2;
         this->ee_compute_rho(state_t, rho2, this->bitlist);
-//        entanglement=this->ee_eval_rho(rho2);
+        //entanglement=this->ee_eval_rho(rho2);
         
         //cout<<"\nweight_t = \n"<<Eigen_Mcd_chop(weight_t)<<endl;
-//        cout<<"t = "<<setw(3)<<t<<" entanglement = "<<entanglement<<endl;
+        //cout<<"t = "<<setw(3)<<t<<" entanglement = "<<entanglement<<endl;
         //cout<<"norm = "<<weight_t.norm()<<endl;
         
         entanglement_t[coren].push_back(vector<double>{t, this->ee_eval_rho(rho2)});
@@ -1786,9 +1647,6 @@ void Scars::Time_Evolution(const double dt, const int Nt, const state_int& state
     for (int i=0; i<entanglement.size(); i++) {
         cout<<"t = "<<setw(3)<<entanglement[i][0]<<" entanglement = "<<entanglement[i][1]<<endl;
     }
-    
-    
-    
 }
 //MPS test state.
 void Scars::mps_run(int ind){
@@ -2056,57 +1914,6 @@ void Scars::print_bitlist_trans_int(){
 //    //    this->ini_hoplist();
 //}
 Scars::~Scars(){};
-
-void quantum_scar_invt(string filename){
-    int no, rangeS;
-    int replu_range, connectX, Ky;
-    bool constrain, inv;
-    string type, bound_cond;
-    
-    ifstream infile(filename);
-    infile>>no>>rangeS;
-    infile>>type>>constrain>>bound_cond;
-    infile>>replu_range>>connectX;
-    infile>>inv>>Ky;
-    infile.close();
-    
-    //cout<<"no, rangeS, type, boundary_cond="<<no<<" "<<rangeS<<" "<<type<<" "<<bound_cond<<endl;
-    
-    Scars qscars(no, rangeS, type, constrain, bound_cond, replu_range, connectX);
-    
-//    qscars.makeScarShrinker_trans(+1);
-//    qscars.makeScarShrinker_trans_inv(false);
-//    cout<<"+1, false, shrinkermatrix=\n"<<qscars.shrinkMatrix_trans_inv<<endl;
-    
-//    qscars.makeScarShrinker_trans(-1);
-//    qscars.makeScarShrinker_trans_inv(true);
-//    cout<<"-1, true, shrinkermatrix=\n"<<qscars.shrinkMatrix_trans_inv<<endl;
-    
-//    exit(0);
-    
-    
-    bool calculateee=false;
-    if (qscars.diag_scar_H_inv_t(true, 1, calculateee)) {
-        cout<<"\ninv, Ky = 1, 1"<<endl;
-        qscars.Show_Eigen_Sets(50000, false, true, false);
-    }
-
-    if (qscars.diag_scar_H_inv_t(false, 1, calculateee)) {
-        cout<<"\ninv, Ky = -1, 1"<<endl;
-        qscars.Show_Eigen_Sets(50000, false, true, false);
-    }
-    
-    if (qscars.diag_scar_H_inv_t(true, -1, calculateee)) {
-        cout<<"\ninv, Ky = 1, -1"<<endl;
-        qscars.Show_Eigen_Sets(50000, true, true, false);
-    }
-
-    if (qscars.diag_scar_H_inv_t(false, -1, calculateee)) {
-        cout<<"\ninv, Ky = -1, -1"<<endl;
-        qscars.Show_Eigen_Sets(50000, false, true, false);
-    }
-    
-}
 void quantum_scar_new(string filename){
     int no, rangeS;
     int replu_range, connectX, Ky;
@@ -2120,33 +1927,30 @@ void quantum_scar_new(string filename){
     infile>>inv>>Ky;
     infile.close();
     
-    bool makeinvproj=false;
-    Scars qscars(no, rangeS, type, constrain, bound_cond, replu_range, connectX, makeinvproj);
+    bool quickmode=true;
+    Scars qscars(no, rangeS, type, constrain, bound_cond, replu_range, connectX, quickmode);
     
     qscars.ee_setup(0, qscars.No/2, qscars.bitlist);
     
-    bool calculatetrans=true, calculatees=false, calculateph=true, showes=true, showph=false, showtrans=true;
+    //qscars.generate_redmindmat();
+    qscars.generate_svdindmat();
+    
+    bool calculatetrans=true, calculatees=true, calculateph=true, calculatet=false, calculatett=false, calculatethalf=false, showes=true, showph=false, showtrans=false;
     //qscars.diag_scar_H_inv("both", calculatetrans, calculatees, calculateph);
     //qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
     
-//    cout<<"@@@@@ inv+t, "<<inv<<", "<<Ky<<endl;
-//    if (qscars.diag_scar(inv, Ky, "t", calculatees)) {
-//        qscars.Show_Eigen_Sets(50000, showtrans, showes, showph);
-//    }
-    
     string outfilename=type+"_PBC_"+to_string((long long int)(no))+"_reprg"+to_string((long long int)(replu_range))+"_Xs"+to_string((long long int)(connectX));
-    bool calculatet=false, calculatett=false, calculatethalf=false;
     if (qscars.diag_scar(true, +1, "t", calculatees, calculatet, calculatett, calculatethalf)) {
-        qscars.Print_Eigen_Sets2(50000, outfilename+"_inv1_t1.txt", showes);
+        qscars.Print_Eigen_Sets2(-1, outfilename+"_inv1_t1.txt", showes, showtrans);
     }
     if (qscars.diag_scar(false, +1, "t", calculatees, calculatet, calculatett, calculatethalf)) {
-        qscars.Print_Eigen_Sets2(50000, outfilename+"_inv0_t1.txt", showes);
+        qscars.Print_Eigen_Sets2(-1, outfilename+"_inv0_t1.txt", showes, showtrans);
     }
     if (qscars.diag_scar(true, -1, "t", calculatees, calculatet, calculatett, calculatethalf)) {
-        qscars.Print_Eigen_Sets2(50000, outfilename+"_inv1_t0.txt", showes);
+        qscars.Print_Eigen_Sets2(-1, outfilename+"_inv1_t0.txt", showes, showtrans);
     }
     if (qscars.diag_scar(false, -1, "t", calculatees, calculatet, calculatett, calculatethalf)) {
-        qscars.Print_Eigen_Sets2(50000, outfilename+"_inv0_t0.txt", showes);
+        qscars.Print_Eigen_Sets2(-1, outfilename+"_inv0_t0.txt", showes, showtrans);
     }
 }
 void quantum_scar(string filename){
@@ -2358,22 +2162,6 @@ void quantum_scar_mps(string filename){
     qscars.ee_setup(0, qscars.No/2, qscars.bitlist);
     
     qscars.mps_run();
-    
-//    vector<Eigen::VectorXd> entanglement=qscars.mps_entanglement();
-//    cout<<"entanglement.size()="<<entanglement.size()<<endl;
-//    for (int i=0; i<entanglement.size(); i++) {
-//        cout<<"i="<<endl;
-//        cout<<entanglement[i]<<endl;
-//        cout<<endl;
-//
-//        double ent=0.;
-//        for (int j=0; j<entanglement[i].size(); j++) {
-//            if (abs(entanglement[i](j)>0)) {
-//                ent+=entanglement[i](j)*log(entanglement[i](j));
-//            }
-//        }
-//        cout<<"entropy="<<-ent<<endl;
-//    }
 }
 void plot_H_dim(int range, int N, string bouncond){
     ofstream outfile("dim_"+bouncond+to_string((long long int)range)+".txt");

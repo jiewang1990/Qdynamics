@@ -18,7 +18,6 @@
 
 void quantum_scar_new(string filename);
 void quantum_scar(string filename);
-void quantum_scar_invt(string filename);
 void quantum_scar_mps(string filename);
 //void quantum_scar(int no, int np, int momentum, bool needM, bool useqh, int rangeS);
 void plot_H_dim(int, int, string);
@@ -83,6 +82,7 @@ inline Eigen::MatrixXd commutator(Eigen::SparseMatrix<double> inputa, Eigen::Spa
 
 class Scars:public Msector{
 private:
+    bool quickmode;
     int rangeS;
     int nvec1, nvec2;
     int replu_range, connectX;
@@ -95,20 +95,19 @@ private:
     void generate_hilberspace();
     vector<matrix> matrixlist_M_h1h1;
     inline bool legal_state(state_int);//to see if a state satisfies quantum-scar constrain: adjacent two sites has at least 0 for any site.
-//    inline bool glegal_state(state_int);//generalized-legal_state, satisfies replusion constraint.
-    //inline bool flip_state(state_int, int);//to see if to flip a spin or not.
+    //inline bool glegal_state(state_int);//generalized-legal_state, satisfies replusion constraint.
     Eigen::SparseMatrix<double> H_spamatrix;
     
 public:
     Scars();
-    Scars(int, int, string, bool, string, int replu_range=1, int connectX=1, bool makeinvproj=true);
+    Scars(int, int, string, bool, string, int replu_range=1, int connectX=1, bool quickmode=false);
     void out_info();
     void usefullsymmetry(bool);
     Msector Diag;
     void show_scar_energy(int);
     Eigen::SparseMatrix<double> get_H();
     vector<double> get_energies(string);
-    void setup_symmetry(bool makeinvproj=true);
+    void setup_symmetry();
     
     int get_H_dim();
     
@@ -117,7 +116,9 @@ public:
 //    Eigen::SparseMatrix<double> SparseLinearComb(Eigen::SparseMatrix<double> input, int ind1, int ind2, double coeff1, double coeff2);
     
     //Inversion.
-    void Inversion_setup(bool makePlsmin=true), proj_H_invsector(), show_scar_energy_inv(int, bool);
+    void Inversion_setup();
+    void proj_H_invsector();
+    void show_scar_energy_inv(int, bool);
     void diag_scar_H();
     void diag_scar_H_inv(string, bool calculatetrans=false, bool calculatees=false, bool calculateph=false);//diag with parity.
     bool diag_scar_H_inv_halft(bool, bool, bool);//use parity and half-translation.
@@ -126,7 +127,6 @@ public:
     bool diag_scar(bool inv, int Ky, string mode, bool calculateee=true, bool calculatet=true, bool calculatett=true, bool calculatethalf=true);
     vector<eigen_set> Eigen_Sets, Eigen_Sets_pls, Eigen_Sets_min;
     Eigen::SparseMatrix<double> Invmat;
-    void make_Invmat();
     int Eval_N_pls, Eval_N_min;
     Eigen::MatrixXd P_pls, P_min, H_inv_pls, H_inv_min;
     
@@ -139,11 +139,8 @@ public:
     //project into Inv+Trans sector.
     Eigen::MatrixXd reducedH;
     bool make_invtrans_proj(bool, bool, bool zerosector=false);
-    //bool make_invtrans_proj_0sector(bool);
     Eigen::SparseMatrix<double> invtrans_proj;
     bool make_inv_trans0pi_proj(bool, bool);
-    Eigen::MatrixXd inv_trans0pi_proj;
-    //vector<state> statelist_0pi;
     void make_inversion_proj();
     Eigen::SparseMatrix<double> shrinkMatrix_trans;
     Eigen::SparseMatrix<double> shrinkMatrix_trans_inv;

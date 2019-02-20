@@ -72,20 +72,20 @@ complex<double> chern(int N, double lambda, bool flip){
 }
 
 int main(int argc, const char * argv[]) {
-    vector<double> energy;
-    readfile("PXP_PBC_18_reprg1_Xs1_inv1_t1.txt", energy);
-    
-    vector<double> etmp=levelsta(energy);
-    ofstream outfile("tilder.txt");
-    for (int i=0; i<etmp.size(); i++) {
-        outfile<<etmp[i]<<endl;
-    }
-    outfile.close();
+//    vector<double> energy;
+//    readfile("PXP_PBC_30_reprg3_Xs2_inv1_t1.txt", energy);
+//    
+//    vector<double> etmp=levelsta(energy);
+//    ofstream outfile("tilder.txt");
+//    for (int i=0; i<etmp.size(); i++) {
+//        outfile<<etmp[i]<<endl;
+//    }
+//    outfile.close();
     
     quantum_scar_new("params");
-//    quantum_scar_invt("params");
-//    quantum_scar_mps("params");
     
+//    quantum_scar_mps("params");
+//
 //    int N=6;
 //    plot_H_dim(1, N, "OBC");
 //    plot_H_dim(2, N, "PBC");

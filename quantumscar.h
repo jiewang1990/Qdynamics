@@ -16,6 +16,7 @@
 //#include <MatOp/SparseSymMatProd.h>
 //#include <SymEigsSolver.h>
 
+void quantum_scar_PXPPBCs(int, int, int);
 void quantum_scar_new(string filename);
 void quantum_scar(string filename);
 void quantum_scar_mps(string filename);

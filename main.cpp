@@ -82,7 +82,19 @@ int main(int argc, const char * argv[]) {
 //    }
 //    outfile.close();
     
-    quantum_scar_new("params");
+    int N=22;
+    while (N<=22) {
+        quantum_scar_PXPPBCs(N, 1, 1);
+        quantum_scar_PXPPBCs(N, 2, 1);
+        quantum_scar_PXPPBCs(N, 3, 1);
+        quantum_scar_PXPPBCs(N, 3, 2);
+        N+=2;
+    }
+    
+//    quantum_scar_new("params");
+//    quantum_scar_new("params2");
+//    quantum_scar_new("params3");
+//    quantum_scar_new("params4");
     
 //    quantum_scar_mps("params");
 //

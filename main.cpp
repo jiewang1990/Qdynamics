@@ -82,14 +82,39 @@ int main(int argc, const char * argv[]) {
 //    }
 //    outfile.close();
     
-    int N=22;
-    while (N<=22) {
-        quantum_scar_PXPPBCs(N, 1, 1);
-        quantum_scar_PXPPBCs(N, 2, 1);
-        quantum_scar_PXPPBCs(N, 3, 1);
-        quantum_scar_PXPPBCs(N, 3, 2);
-        N+=2;
-    }
+//    quantum_scar_PXPPBCs(36, 18, 1);
+    
+//    int N=22;
+//    while (N<=22) {
+//        quantum_scar_PXPPBCs(N, 1, 1);
+//        quantum_scar_PXPPBCs(N, 2, 1);
+//        quantum_scar_PXPPBCs(N, 3, 1);
+//        quantum_scar_PXPPBCs(N, 3, 2);
+//        N+=2;
+//    }
+    
+//    unsigned long long int state = 1 << 31;
+//    cout<<"sizeof = "<<sizeof(state)<<endl;
+//    cout<<"state = "<<state<<endl;
+//    cout<<numeric_limits<int>::max()<<endl;
+//    cout<<numeric_limits<unsigned int>::max()<<endl;
+//    cout<<numeric_limits<unsigned long int>::max()<<endl;
+//    cout<<numeric_limits<unsigned long long int>::max()<<endl;
+//    cout<<pow(2, 35)<<endl;
+//    unsigned long long int tmp=pow(2, 55);
+//    cout<<tmp<<endl;
+//
+//    unsigned long long int one = 1;
+//    unsigned long long int state = one << 55;
+//    cout<<"state = "<<state<<endl;
+    
+    state_int one = 1;
+    state_int statetmp=one<<55;
+    cout<<"statetmp="<<statetmp<<endl;
+    print_bit(statetmp, 60);
+    statetmp=cycle_bits(statetmp, 60);
+    cout<<"statetmp="<<statetmp<<endl;
+    print_bit(statetmp, 60);
     
 //    quantum_scar_new("params");
 //    quantum_scar_new("params2");

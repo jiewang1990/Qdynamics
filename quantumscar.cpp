@@ -813,57 +813,33 @@ bool Scars::diag_scar(bool inv, int Ky, string mode, bool calculatees, bool calc
         eset_tmp.evec=localshrink.adjoint()*es.eigenvectors().col(i);
         eset_tmp.eval=es.eigenvalues()[i];
         
-        if (this->quickmode and eset_tmp.eval<=0) {
-            //cout<<"E="<<eset_tmp.eval<<endl;
-            if (calculatethalf) {
-                eset_tmp.trans=chop(eset_tmp.evec.dot(this->Transmat_halfL*eset_tmp.evec));
-            }
-            if (calculatet) {
-                eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
-            }
-            if (calculatett) {
-                eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
-            }
-            if (calculatees) {
-                Eigen::MatrixXd rho2;
-                Eigen::MatrixXd svdmat;
-                //cout<<"to redmindmat"<<endl;
-                //this->ee_compute_rho_redmindmat(eset_tmp.evec, rho2);
-                //cout<<"done redmindmat"<<endl;
-                //cout<<"to compute ent, dm"<<endl;
-                //eset_tmp.entanglement=this->ee_eval_rho(rho2);
-                //cout<<"done ent, dm, "<<eset_tmp.entanglement<<endl;
-                
-                //cout<<"to svd"<<endl;
-                this->generate_svdmat(eset_tmp.evec, svdmat);
-                //cout<<"done svd"<<endl;
-                //cout<<"to compute end, svd"<<endl;
-                eset_tmp.entanglement=ee_eval_bdcsvd(svdmat);
-                //cout<<"done ent, svd, "<<eset_tmp.entanglement<<endl;
-                //cout<<"done calculate ent"<<endl;
-            }
+        //cout<<"E="<<eset_tmp.eval<<endl;
+        if (calculatethalf) {
+            eset_tmp.trans=chop(eset_tmp.evec.dot(this->Transmat_halfL*eset_tmp.evec));
         }
-        else if (this->quickmode and eset_tmp.eval>0) {
-            eset_tmp.trans=0.;
-            eset_tmp.singletrans1=0.;
-            eset_tmp.singletrans2=0.;
-            eset_tmp.entanglement=0.;
+        if (calculatet) {
+            eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
         }
-        else if (!this->quickmode) {
-            if (calculatethalf) {
-                eset_tmp.trans=chop(eset_tmp.evec.dot(this->Transmat_halfL*eset_tmp.evec));
-            }
-            if (calculatet) {
-                eset_tmp.singletrans1=chop(eset_tmp.evec.dot(this->Transmat*eset_tmp.evec));
-            }
-            if (calculatett) {
-                eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
-            }
-            if (calculatees) {
-                Eigen::MatrixXd rho2;
-                this->ee_compute_rho(eset_tmp.evec, rho2, this->bitlist);
-                eset_tmp.entanglement=this->ee_eval_rho(rho2);
-            }
+        if (calculatett) {
+            eset_tmp.singletrans2=chop(eset_tmp.evec.dot(this->Transmat*this->Transmat*eset_tmp.evec));
+        }
+        if (calculatees) {
+            Eigen::MatrixXd rho2;
+            Eigen::MatrixXd svdmat;
+            //cout<<"to redmindmat"<<endl;
+            //this->ee_compute_rho_redmindmat(eset_tmp.evec, rho2);
+            //cout<<"done redmindmat"<<endl;
+            //cout<<"to compute ent, dm"<<endl;
+            //eset_tmp.entanglement=this->ee_eval_rho(rho2);
+            //cout<<"done ent, dm, "<<eset_tmp.entanglement<<endl;
+            
+            //cout<<"to svd"<<endl;
+            this->generate_svdmat(eset_tmp.evec, svdmat);
+            //cout<<"done svd"<<endl;
+            //cout<<"to compute end, svd"<<endl;
+            eset_tmp.entanglement=ee_eval_bdcsvd(svdmat);
+            //cout<<"done ent, svd, "<<eset_tmp.entanglement<<endl;
+            //cout<<"done calculate ent"<<endl;
         }
         
         EigenSets[coren].push_back(eset_tmp);

@@ -108,15 +108,15 @@ int main(int argc, const char * argv[]) {
 //    unsigned long long int state = one << 55;
 //    cout<<"state = "<<state<<endl;
     
-    state_int one = 1;
-    state_int statetmp=one<<55;
-    cout<<"statetmp="<<statetmp<<endl;
-    print_bit(statetmp, 60);
-    statetmp=cycle_bits(statetmp, 60);
-    cout<<"statetmp="<<statetmp<<endl;
-    print_bit(statetmp, 60);
+//    state_int one = 1;
+//    state_int statetmp=one<<55;
+//    cout<<"statetmp="<<statetmp<<endl;
+//    print_bit(statetmp, 60);
+//    statetmp=cycle_bits(statetmp, 60);
+//    cout<<"statetmp="<<statetmp<<endl;
+//    print_bit(statetmp, 60);
     
-//    quantum_scar_new("params");
+    quantum_scar_new("params");
 //    quantum_scar_new("params2");
 //    quantum_scar_new("params3");
 //    quantum_scar_new("params4");

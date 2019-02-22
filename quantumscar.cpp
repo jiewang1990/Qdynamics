@@ -100,8 +100,6 @@ void Scars::setup_symmetry(){
     if (this->bound_cond=="PBC" and this->quickmode) {
         this->Translation_setup();
         //cout<<"done translation"<<endl;
-        this->Inversion_setup();
-        //cout<<"done inversion"<<endl;
     }
     else if (this->bound_cond=="PBC" and !this->quickmode) {
         this->Translation_setup();
@@ -1323,64 +1321,41 @@ void Scars::makeScarShrinker_trans(int Ky){
         cout<<"makeScarShrinker, Ky=1 or -1."<<endl;
     }
     
-    vector<Eigen::Triplet<double>> triplets;
-    vector<Eigen::Triplet<double>> temptrips;
-    this->statelist_2K.clear(); this->bitlist_2K.clear();
+    vector<Eigen::Triplet<double>> triplets, temptrips;
     //'col' will be the ind in the two-K list. 'index' is ind in one-K list.
-    int invNu=2, index, col=0, phase, sign, temp, ind;
+    int index, col=0, phase, temp, ind;
     vector<int> temp_b(this->No, 0);
     //a list that stores the index of states (and it's permutations) found.
     vector<int> found_states; state out_b;
-    //iterator for fermions and bosons.
     vector<state_int>::iterator it;
-    vector<state>::iterator itb;
-
-    //this->print_statelist();
-
+    this->statelist_2K.clear(); this->bitlist_2K.clear();
+    
     for(int i=0; i<this->statelist_M.size(); i++){
         if (this->bitlist[i]==0 and Ky==-1 and statistics=="fermion") continue;//New.
-        
         if(find(found_states.begin(),found_states.end(),i)!=found_states.end()) continue;
         
-        ////insert into statelist_2K;
-        //statelist_2K.push_back(this->statelist_M[i]);
-        //if (statistics=="fermion") bitlist_2K.push_back(vec_to_int(this->statelist_M[i].obasis));
-
-        phase=0; sign=1; temptrips.clear();
-        
+        phase=0; temptrips.clear();
         if (statistics=="fermion") {
             it=this->bitlist.begin()+i;
             temp=this->bitlist[i];
-            //suppose x is the periodic direction. get all matrix elements related to 'i' by operating T_y^m several times.
             while(true){
-                //shift by invnu, adding an element each time, until you get back to the start.
                 index=it-this->bitlist.begin();
-                
-                //see the tex file. Given a one-K state |alpha>, the two-K state is \sum_{phase=0}^{N_e-1} polar(1.,-2pi*phase/Ne*(Ky+Nphi/2))*T_y^{m phase}|alpha>.
-                
                 double value; if (Ky==1) value=1.; else if (phase%2==0) value=1.; else value=-1.;
-                
                 temptrips.push_back(Eigen::Triplet<double>(col,index,value));
-                //if (col==0) cout<<"ind="<<index<<" sign="<<sign<<" phase="<<phase<<" val="<<phase*Ky<<endl;
-                
                 found_states.push_back(index);
-                //The sign comes from single-bit's determinant structure, if one bit exceed NPhi, sign=-1 if Ne-1+NPhi=odd.
-                //TODO: I think sign should be -1 if Ne-1+NPhi=odd. In CFL, NPhi is always even. Test this in Laughlin! And bitlist ordering is different from Scott's, so instead using 'lower_bound', I need to use 'find'.
-
-                //cout<<"@@@ make shrinker might be wrong. b.c. hasn't taken into account"<<endl;
-                int cyc_num;
                 
-                //cout<<"temp0"<<endl; print_bit(temp, this->No);
-                temp=cycle_M2(temp,this->No,this->Np,1,sign,cyc_num);
-                //cout<<"temp1"<<endl; print_bit(temp, this->No);
+                temp=cycle_bits(temp, this->No);
                 
-                if(temp==this->bitlist[i]) {
-                    break;
-                }
+                if(temp==this->bitlist[i]) break;
+                
                 //it=lower_bound(this->bitlist.begin(),this->bitlist.end(),temp);
                 //TODO: can "find" be improved by "lower_bound"???
                 it=find(this->bitlist.begin(),this->bitlist.end(),temp);
                 phase++;
+                if (phase>this->No) {
+                    cout<<"BUG, QUIT"<<endl;
+                    exit(0);
+                }
             }
             
         }
@@ -1400,7 +1375,6 @@ void Scars::makeScarShrinker_trans(int Ky){
             //insert into statelist_2K;
             statelist_2K.push_back(this->statelist_M[i]);
             bitlist_2K.push_back(this->bitlist[i]);
-            //bitlist_2K.push_back(vec_to_int(this->statelist_M[i].obasis));
             
             for(unsigned int j=0;j<temptrips.size();j++) {
                 temptrips[j]=Eigen::Triplet<double>(temptrips[j].row(), temptrips[j].col(), temptrips[j].value()/sqrt(temptrips.size()));

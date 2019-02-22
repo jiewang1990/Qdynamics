@@ -1323,7 +1323,8 @@ void Scars::makeScarShrinker_trans(int Ky){
     
     vector<Eigen::Triplet<double>> triplets, temptrips;
     //'col' will be the ind in the two-K list. 'index' is ind in one-K list.
-    int index, col=0, phase, temp, ind;
+    int index, col=0, phase, ind;
+    state_int temp;
     vector<int> temp_b(this->No, 0);
     //a list that stores the index of states (and it's permutations) found.
     vector<int> found_states; state out_b;
@@ -1354,6 +1355,8 @@ void Scars::makeScarShrinker_trans(int Ky){
                 phase++;
                 if (phase>this->No) {
                     cout<<"BUG, QUIT"<<endl;
+                    print_bit(this->bitlist[i], this->No);
+                    print_bit(temp, this->No);
                     exit(0);
                 }
             }
@@ -1398,8 +1401,6 @@ void Scars::makeScarShrinker_trans_inv(bool inv){
     this->bitlist_trans_int=this->bitlist_2K;
     this->shrinkMatrix_trans_inv=this->shrinkMatrix_trans;
     
-    //return ;
-    
     vector<int> avoidpoints; avoidpoints.clear();
     vector<int> avoidpoints2; avoidpoints2.clear();
     
@@ -1410,29 +1411,13 @@ void Scars::makeScarShrinker_trans_inv(bool inv){
         //state = inverted-i; j = its index.
         int j=binaryit-this->bitlist.begin();
         
-        //this->statelist_M_trans_int=this->statelist_2K;
-        //this->bitlist_trans_int=this->bitlist_2K;
-        
         if (this->shrinkMatrix_trans.coeff(i, j)>0 and !inv) {
-            //torestore.push_back(i);
-            //this->statelist_M_trans_int.push_back(this->statelist_2K[i]);
-            //this->bitlist_trans_int.push_back(this->bitlist_2K[i]);
-            //this->shrinkMatrix_trans_inv=SparseRemoveRow(this->shrinkMatrix_trans_inv, i, this->bitlist_trans_int, this->statelist_M_trans_int);
             avoidpoints.push_back(i);
         }
         else if (this->shrinkMatrix_trans.coeff(i, j)<0 and inv) {
-            //torestore.push_back(i);
-            //this->statelist_M_trans_int.push_back(this->statelist_2K[i]);
-            //this->bitlist_trans_int.push_back(this->bitlist_2K[i]);
-            //this->shrinkMatrix_trans_inv=SparseRemoveRow(this->shrinkMatrix_trans_inv, i, this->bitlist_trans_int, this->statelist_M_trans_int);
             avoidpoints.push_back(i);
         }
         else if (this->shrinkMatrix_trans.coeff(i, j)==0) {
-            //continue ;
-            //cout<<"i, j = "<<i<<" "<<j<<endl;
-            //print_bit(bitlist_2K[i], No);
-            //print_bit(bitlist[j], No);
-            
             vector<state_int>::iterator it;
             //int ind;
             state_int temp=state;
@@ -1577,12 +1562,6 @@ void Scars::Time_Evolution(const double dt, const int Nt, const state_int& state
         }
         Eigen::MatrixXcd rho2;
         this->ee_compute_rho(state_t, rho2, this->bitlist);
-        //entanglement=this->ee_eval_rho(rho2);
-        
-        //cout<<"\nweight_t = \n"<<Eigen_Mcd_chop(weight_t)<<endl;
-        //cout<<"t = "<<setw(3)<<t<<" entanglement = "<<entanglement<<endl;
-        //cout<<"norm = "<<weight_t.norm()<<endl;
-        
         entanglement_t[coren].push_back(vector<double>{t, this->ee_eval_rho(rho2)});
     }
     for (int i=0; i<nthreads; i++) {

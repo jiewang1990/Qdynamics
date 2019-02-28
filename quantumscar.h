@@ -83,7 +83,7 @@ inline Eigen::MatrixXd commutator(Eigen::SparseMatrix<double> inputa, Eigen::Spa
 
 class Scars:public Msector{
 private:
-    bool quickmode;
+    bool quickmode, verbose=false;
     int rangeS;
     int nvec1, nvec2;
     int replu_range, connectX;

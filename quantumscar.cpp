@@ -44,33 +44,22 @@ Eigen::SparseMatrix<double> SparseLinearComb(Eigen::SparseMatrix<double> input, 
 }
 
 Scars::Scars(){};
-Scars::Scars(int no_t, int ranges_t, string type_t, bool constrain_t, string bound_cond_t, int replu_range_t, int connectX_t, bool quickmode_t):rangeS(ranges_t), type(type_t), constrain(constrain_t), bound_cond(bound_cond_t), replu_range(replu_range_t), connectX(connectX_t), quickmode(quickmode_t) {
+Scars::Scars(int no_t, int ranges_t, string type_t, bool constrain_t, string bound_cond_t, int replu_range_t, int connectX_t, bool quickmode_t):rangeS(ranges_t), type(type_t), constrain(constrain_t), bound_cond(bound_cond_t), replu_range(replu_range_t), connectX(connectX_t), quickmode(quickmode_t), verbose(true) {
+    
     this->init(no_t);
-    //this->out_info();
+    
+    if (this->verbose) this->out_info();
     
     this->generate_hilberspace();
-    //cout<<"done make hilbertspace"<<endl;
-    
-    //this->print_statelist();
     
     this->setup_symmetry();
-    cout<<"done setup symmetry"<<endl;
 
     this->diag_setup(this->type);
-    
-    
-    
-//    cout<<"$ start diagonalization $"<<endl;
-//    //this->diag_scar();
-//    this->diag_scar_H_inv("both");
-////    this->diag_scar_H_spectra("both", this->nvec1, this->nvec2);
-//    cout<<"$ done  diagonalization $"<<endl;
-//
-//    this->print_Eigen_Sets(200);
 }
 void Scars::out_info(){
     cout<<"no, rangeS, type, constrain, boundary_cond="<<this->No<<" "<<this->rangeS<<" "<<this->type<<" "<<this->constrain<<" "<<this->bound_cond<<endl;
     cout<<"replusion_range, connected_X = "<<this->replu_range<<" "<<this->connectX<<endl;
+    cout<<"quickmode = "<<this->quickmode<<endl;
 }
 void Scars::init(int no_t){
     this->statelist_M.clear(); this->matrixlist_M.clear(); this->one=(state_int) 1;
@@ -83,8 +72,6 @@ void Scars::init(int no_t){
     else {
         this->usefullsymmetry(false);
     }
-    
-    cout<<"L="<<this->No<<", type="<<this->type<<", "<<this->replu_range<<" "<<connectX<<endl;
 }
 void Scars::usefullsymmetry(bool use){
     if (use) {
@@ -99,33 +86,26 @@ void Scars::usefullsymmetry(bool use){
 void Scars::setup_symmetry(){
     if (this->bound_cond=="PBC" and this->quickmode) {
         this->Translation_setup();
-        //cout<<"done translation"<<endl;
     }
     else if (this->bound_cond=="PBC" and !this->quickmode) {
         this->Translation_setup();
-        //cout<<"done translation"<<endl;
         this->Inversion_setup();
-        //cout<<"done inversion"<<endl;
         this->make_inversion_proj();
-        //cout<<"done inversion proj"<<endl;
         this->ParticleHole_setup();
-        //cout<<"done particlehole"<<endl;
     }
     else if (this->bound_cond=="OBC") {
         this->Inversion_setup();
         this->ParticleHole_setup();
     }
+    if (this->verbose) cout<<"set up symmetry"<<endl;
 }
 void Scars::diag_setup(string type_t){
     this->make_mlist(type_t);
-    //cout<<"done  make mlist"<<endl;
     
     this->H_spamatrix=Eigen::SparseMatrix<double>(this->bitlist.size(), this->bitlist.size());
-    //cout<<"mlist_to_ftriplets"<<endl;
     vector<Eigen::Triplet<double>> triplets=mlist_to_ftriplet(this->matrixlist_M);
-    //cout<<"set from triplets"<<endl;
     this->H_spamatrix.setFromTriplets(triplets.begin(), triplets.end());
-    //cout<<"done diag setup"<<endl;
+    if (this->verbose) cout<<"done diag setup, H,cols, rows="<<this->H_spamatrix.cols()<<" "<<this->H_spamatrix.rows()<<endl;
 }
 //inline bool Scars::legal_state(state_int input){
 //    if (bound_cond=="PBC") {
@@ -201,8 +181,7 @@ void Scars::generate_hilberspace(){
         this->statelist_M[i].Mom=0;
     }
     this->bitlist=this->basis;
-    
-    cout<<"done generate hilbert space, dim()="<<this->bitlist.size()<<endl;
+    if (this->verbose) cout<<"done generate hilbert space, dim()="<<this->bitlist.size()<<endl;
 }
 void Scars::make_mlist(string type_t){
     this->matrixlist_M.clear();
@@ -382,6 +361,7 @@ void Scars::make_mlist(string type_t){
     }
     
     this->matrixlist_M=mergemlist(sortmlist(this->matrixlist_M));
+    if (this->verbose) cout<<"done make mlist, dim="<<this->matrixlist_M.size()<<endl;
 }
 void Scars::diag_scar_H(){
     cout<<"@@ begin diagonalize @@, size="<<this->H_spamatrix.cols()<<endl;
@@ -475,6 +455,7 @@ void Scars::Inversion_setup(){
         }
     }
     this->Invmat.setFromTriplets(triples.begin(), triples.end());
+    if (this->verbose) cout<<"inversion set up"<<endl;
 }
 void Scars::make_inversion_proj(){
     //setup the dimension of inversion symmetry, anti-symmetry sector.
@@ -773,7 +754,7 @@ bool Scars::diag_scar(bool inv, int Ky, string mode, bool calculatees, bool calc
         exit(0);
     }
     
-    Eigen::SparseMatrix<double> localshrink;
+    Eigen::SparseMatrix<double> localshrink; localshrink.resize(0, 0);
     if (mode=="t") {
         this->makeScarShrinker_trans(Ky);
         this->makeScarShrinker_trans_inv(inv);
@@ -788,8 +769,9 @@ bool Scars::diag_scar(bool inv, int Ky, string mode, bool calculatees, bool calc
         return false;
     }
     
+    this->reducedH.resize(0, 0);
     this->reducedH=localshrink*this->H_spamatrix*localshrink.adjoint();
-    cout<<"reducedH.dim()="<<this->reducedH.cols()<<endl;
+    cout<<"reducedH.dim()="<<this->reducedH.cols()<<", mode, ee, t, tt, thalf="<<mode<<" "<<calculatees<<" "<<calculatet<<" "<<calculatethalf<<endl;
     
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double,-1,-1>> es;
     es.compute(this->reducedH);
@@ -995,6 +977,8 @@ void Scars::Show_Eigen_Sets(int range, bool printtrans, bool printes, bool print
     //cout<<"Zero mode dimension = "<<zeromodedim<<endl;
 }
 void Scars::Print_Eigen_Sets2(int range, string filename, bool printes, bool printtrans){
+    if (this->verbose) cout<<"to print, "<<filename<<", printes, printtrans = "<<printes<<" "<<printtrans<<endl;
+    
     ofstream outfile("data/"+filename);
     
     outfile<<"      E,      Inv,      ";
@@ -1060,6 +1044,7 @@ void Scars::Print_Eigen_Sets2(int range, string filename, bool printes, bool pri
     }
     
     outfile.close();
+    if (this->verbose) cout<<"done print"<<endl;
 }
 void Scars::Print_Eigen_Sets(int range, string filename, bool printes, bool printph, bool printtrans){
     ofstream outfile(filename+".txt");
@@ -1189,6 +1174,7 @@ void Scars::ParticleHole_setup(){
     }
     
     this->PHmat.setFromTriplets(triples.begin(), triples.end());
+    if (this->verbose) cout<<"particle hole set up"<<endl;
 }
 //Translation.
 void Scars::Translation_setup(){
@@ -1221,14 +1207,10 @@ void Scars::Translation_setup(){
     if (this->No%2==0) {
         this->Transmat_halfL=Trans_pow(this->No/2);
     }
+    if (this->verbose) cout<<"done translation set up"<<endl;
 }
 bool Scars::make_invtrans_proj(bool inv, bool trans, bool zerosector){
     Eigen::MatrixXd InvTransMat, invmatrix;
-    
-//    cout<<"transmat.cols,row="<<this->Transmat.cols()<<" "<<this->Transmat.rows()<<endl;
-//    cout<<"transmat_half.cols,row="<<this->Transmat_halfL.cols()<<" "<<this->Transmat_halfL.rows()<<endl;
-//    exit(0);
-    
     if (inv) {
         invmatrix=this->P_pls;
         if (zerosector) {
@@ -1320,6 +1302,7 @@ void Scars::makeScarShrinker_trans(int Ky){
     if (Ky!=1 and Ky!=-1) {
         cout<<"makeScarShrinker, Ky=1 or -1."<<endl;
     }
+    this->shrinkMatrix_trans.resize(0, 0);
     
     vector<Eigen::Triplet<double>> triplets, temptrips;
     //'col' will be the ind in the two-K list. 'index' is ind in one-K list.
@@ -1399,6 +1382,7 @@ void Scars::makeScarShrinker_trans(int Ky){
 void Scars::makeScarShrinker_trans_inv(bool inv){
     this->statelist_M_trans_int=this->statelist_2K;
     this->bitlist_trans_int=this->bitlist_2K;
+    this->shrinkMatrix_trans_inv.resize(0, 0);
     this->shrinkMatrix_trans_inv=this->shrinkMatrix_trans;
     
     vector<int> avoidpoints; avoidpoints.clear();
